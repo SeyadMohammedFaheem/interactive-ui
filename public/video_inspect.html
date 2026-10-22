@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { background: #0f172a; color: white; font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px; }
+    h2 { text-align: center; margin-bottom: 20px; }
+    .section-title { margin-top: 20px; margin-bottom: 10px; font-size: 18px; color: #94a3b8; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+    .card { background: #1e293b; border-radius: 8px; overflow: hidden; padding: 8px; text-align: center; }
+    canvas { width: 100%; border-radius: 6px; background: #fff; }
+    .time { font-size: 13px; font-weight: 600; color: #38bdf8; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <h2>View on Map Morph — Detailed High-Res Frame Sequence</h2>
+  <video id="vid" src="khagwal_view_on_map.mp4" style="display:none"></video>
+
+  <div class="section-title">1. Pill to Square Expansion (0.0s to 1.6s)</div>
+  <div class="grid" id="grid-expand"></div>
+
+  <div class="section-title">2. Close Tap & Square to Pill Collapse (2.6s to 4.0s)</div>
+  <div class="grid" id="grid-collapse"></div>
+
+  <script>
+    const vid = document.getElementById('vid');
+    
+    vid.addEventListener('loadedmetadata', async () => {
+      // Expansion frames every 0.12s
+      const expandGrid = document.getElementById('grid-expand');
+      for (let t = 0.0; t <= 1.5; t += 0.12) {
+        await renderFrame(t, expandGrid);
+      }
+
+      // Collapse frames every 0.12s
+      const collapseGrid = document.getElementById('grid-collapse');
+      for (let t = 2.6; t <= 4.0; t += 0.12) {
+        await renderFrame(t, collapseGrid);
+      }
+    });
+
+    function renderFrame(time, container) {
+      return new Promise((resolve) => {
+        vid.currentTime = time;
+        vid.onseeked = () => {
+          const card = document.createElement('div');
+          card.className = 'card';
+          const canvas = document.createElement('canvas');
+          canvas.width = vid.videoWidth;
+          canvas.height = vid.videoHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(vid, 0, 0);
+          
+          const label = document.createElement('div');
+          label.className = 'time';
+          label.textContent = time.toFixed(2) + 's';
+
+          card.appendChild(canvas);
+          card.appendChild(label);
+          container.appendChild(card);
+          resolve();
+        };
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Project Morphing Category Pills — Two-Sided Center Bounce (GSAP)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/CustomEase.min.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      user-select: none;
+      overflow: hidden;
+    }
+
+    .stage {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 60px;
+    }
+
+    /* Single Collapsed Pill Button */
+    .collapsed-btn {
+      height: 54px;
+      padding: 0 36px;
+      background: #f2f3f5;
+      border-radius: 999px;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      font-size: 18px;
+      font-weight: 600;
+      color: #374151;
+      letter-spacing: -0.015em;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+      transition: background-color 0.18s ease;
+    }
+
+    .collapsed-btn:hover {
+      background: #eaebee;
+    }
+
+    /* Expanded Row of Separate Sub-Pills */
+    .expanded-row {
+      display: none;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .expanded-row.active {
+      display: flex;
+    }
+
+    .back-btn-pill {
+      width: 54px;
+      height: 54px;
+      border-radius: 999px;
+      background: #f2f3f5;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+      transition: background-color 0.18s ease;
+    }
+
+    .back-btn-pill:hover {
+      background: #eaebee;
+    }
+
+    .category-pill {
+      height: 54px;
+      padding: 0 32px;
+      border-radius: 999px;
+      background: #f2f3f5;
+      border: 2px solid transparent;
+      outline: none;
+      cursor: pointer;
+      font-size: 18px;
+      font-weight: 600;
+      color: #374151;
+      letter-spacing: -0.015em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.18s ease;
+    }
+
+    .category-pill:hover {
+      background: #eaebee;
+    }
+
+    .category-pill.selected {
+      background: #ffffff;
+      color: #111827;
+      font-weight: 700;
+      border-color: #111827;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+    }
+
+    svg {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="stage">
+    <!-- Single Collapsed "New Project" Pill -->
+    <button class="collapsed-btn" id="collapsedBtn">New Project</button>
+
+    <!-- Expanded Row of Sub-Pills Bouncing Outward to Two Sides from Center -->
+    <div class="expanded-row" id="expandedRow">
+      <button class="back-btn-pill" id="backBtn" title="Back">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4b5563" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 18l-6-6 6-6"/>
+        </svg>
+      </button>
+
+      <button class="category-pill" id="pillIos" data-cat="iOS">iOS</button>
+      <button class="category-pill" id="pillMac" data-cat="macOS">macOS</button>
+      <button class="category-pill" id="pillTv" data-cat="tvOS">tvOS</button>
+    </div>
+  </div>
+
+  <script>
+    gsap.registerPlugin(CustomEase);
+    try {
+      CustomEase.create('markerBounceSmooth', 'M0,0 C0.16,1.38 0.3,1 1,1');
+    } catch (e) {}
+
+    const collapsedBtn = document.getElementById('collapsedBtn');
+    const expandedRow = document.getElementById('expandedRow');
+    const backBtn = document.getElementById('backBtn');
+    const pillIos = document.getElementById('pillIos');
+    const pillMac = document.getElementById('pillMac');
+    const pillTv = document.getElementById('pillTv');
+    const categoryPills = document.querySelectorAll('.category-pill');
+
+    let isExpanded = false;
+
+    collapsedBtn.addEventListener('click', () => {
+      if (isExpanded) return;
+
+      // 1. Shrink collapsed pill at center
+      gsap.to(collapsedBtn, {
+        scale: 0.65,
+        opacity: 0,
+        duration: 0.18,
+        ease: 'power2.in',
+        onComplete: () => {
+          collapsedBtn.style.display = 'none';
+          expandedRow.classList.add('active');
+          isExpanded = true;
+
+          // 2. Symmetrical 2-sided bounce from center outward!
+          gsap.fromTo(backBtn,
+            { opacity: 0, scale: 0.4, x: 110 },
+            { opacity: 1, scale: 1, x: 0, duration: 0.48, ease: 'markerBounceSmooth' }
+          );
+
+          gsap.fromTo(pillIos,
+            { opacity: 0, scale: 0.4, x: 45 },
+            { opacity: 1, scale: 1, x: 0, duration: 0.48, ease: 'markerBounceSmooth' }
+          );
+
+          gsap.fromTo(pillMac,
+            { opacity: 0, scale: 0.4, x: -45 },
+            { opacity: 1, scale: 1, x: 0, duration: 0.48, ease: 'markerBounceSmooth' }
+          );
+
+          gsap.fromTo(pillTv,
+            { opacity: 0, scale: 0.4, x: -110 },
+            { opacity: 1, scale: 1, x: 0, duration: 0.48, ease: 'markerBounceSmooth' }
+          );
+        }
+      });
+    });
+
+    backBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!isExpanded) return;
+
+      // 1. Converge inward towards center
+      gsap.to(backBtn, { opacity: 0, scale: 0.5, x: 80, duration: 0.22, ease: 'power2.in' });
+      gsap.to(pillIos, { opacity: 0, scale: 0.5, x: 30, duration: 0.22, ease: 'power2.in' });
+      gsap.to(pillMac, { opacity: 0, scale: 0.5, x: -30, duration: 0.22, ease: 'power2.in' });
+      gsap.to(pillTv, {
+        opacity: 0,
+        scale: 0.5,
+        x: -80,
+        duration: 0.22,
+        ease: 'power2.in',
+        onComplete: () => {
+          expandedRow.classList.remove('active');
+          collapsedBtn.style.display = 'block';
+          isExpanded = false;
+
+          // 2. Spring back single pill at center
+          gsap.fromTo(collapsedBtn,
+            { opacity: 0, scale: 0.7 },
+            { opacity: 1, scale: 1, duration: 0.48, ease: 'markerBounceSmooth' }
+          );
+        }
+      });
+    });
+
+    categoryPills.forEach(pill => {
+      pill.addEventListener('click', (e) => {
+        e.stopPropagation();
+        categoryPills.forEach(p => p.classList.remove('selected'));
+        pill.classList.add('selected');
+
+        gsap.fromTo(pill,
+          { scale: 0.9 },
+          { scale: 1, duration: 0.32, ease: 'back.out(2)' }
+        );
+      });
+    });
+  </script>
+</body>
+</html>

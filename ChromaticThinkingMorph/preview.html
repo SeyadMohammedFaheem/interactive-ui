@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chromatic Thinking Morph — Powered by GSAP</title>
+  <!-- Plus Jakarta Sans Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      user-select: none;
+      padding: 24px;
+    }
+
+    .button {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 28px;
+      border-radius: 999px;
+      background: #f3f3f6;
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+      cursor: pointer;
+      outline: none;
+      transition: box-shadow 0.25s ease;
+    }
+
+    .icon-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #1e293b;
+    }
+
+    .text-label {
+      font-size: 17px;
+      font-weight: 700;
+      color: #1e293b;
+      letter-spacing: -0.01em;
+      line-height: 1;
+    }
+
+    svg {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <button class="button" id="btn" title="Click to generate">
+    <span class="icon-wrapper" id="iconWrapper">
+      <!-- Single 4-Point Star Icon -->
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C12 7.5 16.5 12 22 12C16.5 12 12 16.5 12 22C12 16.5 7.5 12 2 12C7.5 12 12 7.5 12 2Z"></path>
+      </svg>
+    </span>
+
+    <span class="text-label" id="textLabel">Generate</span>
+  </button>
+
+  <script>
+    const CHROMATIC_PALETTES = [
+      { bg: '#e6f7f2', color: '#059669' },
+      { bg: '#fde8ed', color: '#e11d48' },
+      { bg: '#eef2ff', color: '#4f46e5' },
+      { bg: '#f4f8e8', color: '#65a30d' },
+      { bg: '#fff2e6', color: '#ea580c' },
+      { bg: '#f5f3ff', color: '#7c3aed' }
+    ];
+
+    let isThinking = false;
+    let paletteIdx = 0;
+    let timer = null;
+    let rotateTween = null;
+
+    const btn = document.getElementById('btn');
+    const iconWrapper = document.getElementById('iconWrapper');
+    const textLabel = document.getElementById('textLabel');
+
+    const starSvgHtml = `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C12 7.5 16.5 12 22 12C16.5 12 12 16.5 12 22C12 16.5 7.5 12 2 12C7.5 12 12 7.5 12 2Z"></path></svg>`;
+
+    function updatePalette() {
+      if (!isThinking) return;
+      const palette = CHROMATIC_PALETTES[paletteIdx];
+
+      gsap.to(btn, { backgroundColor: palette.bg, duration: 0.8, ease: 'power2.inOut' });
+      gsap.to([iconWrapper, textLabel], { color: palette.color, fill: palette.color, duration: 0.8, ease: 'power2.inOut' });
+    }
+
+    btn.onclick = () => {
+      gsap.fromTo(btn, { scale: 0.94 }, { scale: 1, duration: 0.3, ease: 'back.out(2)' });
+      isThinking = !isThinking;
+
+      if (isThinking) {
+        iconWrapper.innerHTML = starSvgHtml;
+        textLabel.textContent = 'Thinking';
+        paletteIdx = 0;
+        updatePalette();
+
+        rotateTween = gsap.to(iconWrapper, {
+          rotation: 360,
+          duration: 2.5,
+          repeat: -1,
+          ease: 'none'
+        });
+
+        timer = setInterval(() => {
+          paletteIdx = (paletteIdx + 1) % CHROMATIC_PALETTES.length;
+          updatePalette();
+        }, 1200);
+      } else {
+        clearInterval(timer);
+        if (rotateTween) {
+          rotateTween.kill();
+          rotateTween = null;
+        }
+        iconWrapper.innerHTML = starSvgHtml;
+        textLabel.textContent = 'Generate';
+
+        gsap.to(btn, { backgroundColor: '#f3f3f6', duration: 0.5, ease: 'power2.out' });
+        gsap.to([iconWrapper, textLabel], { color: '#1e293b', fill: '#1e293b', scale: 1, rotation: 0, duration: 0.5, ease: 'power2.out' });
+      }
+    };
+  </script>
+</body>
+</html>

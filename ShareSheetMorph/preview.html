@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Share Sheet Morph — Powered by GSAP</title>
+  <!-- Plus Jakarta Sans Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/CustomEase.min.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      user-select: none;
+      padding: 24px;
+    }
+
+    .center-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      position: relative;
+      width: 56px;
+      height: 56px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, #2d2d38 0%, #15151c 100%);
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.25), 0 12px 28px -4px rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+
+    .share-btn {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      outline: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .contact-list {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      box-sizing: border-box;
+      opacity: 0;
+    }
+
+    .hover-pill {
+      position: absolute;
+      left: 12px;
+      width: calc(100% - 24px);
+      height: 52px;
+      border-radius: 16px;
+      background: #ffffff;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03);
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .contact-row {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 6px 10px;
+      height: 52px;
+      border-radius: 16px;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+
+    .avatar-img {
+      width: 40px;
+      height: 40px;
+      object-fit: cover;
+      border-radius: 50%;
+      transition: all 0.25s cubic-bezier(0.16, 1.38, 0.3, 1);
+    }
+
+    .contact-name {
+      font-size: 15px;
+      letter-spacing: -0.01em;
+      line-height: 1;
+      color: #1e293b;
+      font-weight: 600;
+    }
+
+    .sending-container {
+      position: relative;
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      display: none;
+    }
+
+    .progress-svg {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      z-index: 2;
+    }
+
+    .sending-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      object-fit: cover;
+      z-index: 1;
+    }
+
+    .sent-container {
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      display: none;
+    }
+
+    .check-badge {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #10b981;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="center-wrapper">
+    <div class="card" id="card">
+      <!-- State 1: Share Icon -->
+      <button class="share-btn" id="shareBtn" title="Open Share Sheet">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+          <polyline points="16 6 12 2 8 6"></polyline>
+          <line x1="12" y1="2" x2="12" y2="15"></line>
+        </svg>
+      </button>
+
+      <!-- State 2: Contact List -->
+      <div class="contact-list" id="contactList">
+        <div class="hover-pill" id="hoverPill"></div>
+
+        <div class="contact-row" data-avatar="/avatar_ashish.jpg" data-name="Ashish Kashyap">
+          <img src="/avatar_ashish.jpg" class="avatar-img" alt="Ashish Kashyap">
+          <span class="contact-name">Ashish Kashyap</span>
+        </div>
+        <div class="contact-row" data-avatar="/avatar_nitish.jpg" data-name="Nitish Khagwal">
+          <img src="/avatar_nitish.jpg" class="avatar-img" alt="Nitish Khagwal">
+          <span class="contact-name">Nitish Khagwal</span>
+        </div>
+        <div class="contact-row" data-avatar="/avatar_rahul.jpg" data-name="Rahul Bhadoriya">
+          <img src="/avatar_rahul.jpg" class="avatar-img" alt="Rahul Bhadoriya">
+          <span class="contact-name">Rahul Bhadoriya</span>
+        </div>
+        <div class="contact-row" data-avatar="/avatar_sakshi.jpg" data-name="Sakshi">
+          <img src="/avatar_sakshi.jpg" class="avatar-img" alt="Sakshi">
+          <span class="contact-name">Sakshi</span>
+        </div>
+        <div class="contact-row" data-avatar="/avatar_vikas.jpg" data-name="Vikas Raj">
+          <img src="/avatar_vikas.jpg" class="avatar-img" alt="Vikas Raj">
+          <span class="contact-name">Vikas Raj</span>
+        </div>
+      </div>
+
+      <!-- State 3: Sending Spinner -->
+      <div class="sending-container" id="sendingContainer">
+        <svg width="48" height="48" viewBox="0 0 48 48" class="progress-svg">
+          <circle cx="24" cy="24" r="18" fill="none" stroke="rgba(255, 255, 255, 0.15)" stroke-width="3" />
+          <circle id="progressCircle" cx="24" cy="24" r="18" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-dasharray="113" stroke-dashoffset="113" style="transform: rotate(-90deg); transform-origin: 50% 50%;" />
+        </svg>
+        <img id="sendingAvatarImg" src="" class="sending-avatar" alt="Selected Contact">
+      </div>
+
+      <!-- State 4: Sent Checkmark -->
+      <div class="sent-container" id="sentContainer">
+        <div class="check-badge" id="checkBadge">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    gsap.registerPlugin(CustomEase);
+    try {
+      CustomEase.create('morphSpring', 'M0,0 C0.16,1.38 0.3,1 1,1');
+      CustomEase.create('smoothGlide', 'M0,0 C0.4,0 0.2,1 1,1');
+    } catch (e) {}
+
+    let state = 'idle'; // 'idle' | 'expanded' | 'sending' | 'sent'
+    const card = document.getElementById('card');
+    const shareBtn = document.getElementById('shareBtn');
+    const contactList = document.getElementById('contactList');
+    const hoverPill = document.getElementById('hoverPill');
+    const rows = document.querySelectorAll('.contact-row');
+    const sendingContainer = document.getElementById('sendingContainer');
+    const sendingAvatarImg = document.getElementById('sendingAvatarImg');
+    const progressCircle = document.getElementById('progressCircle');
+    const sentContainer = document.getElementById('sentContainer');
+    const checkBadge = document.getElementById('checkBadge');
+
+    function openCard() {
+      if (state !== 'idle') return;
+      state = 'expanded';
+      shareBtn.style.display = 'none';
+      contactList.style.display = 'flex';
+      gsap.to(contactList, { opacity: 1, duration: 0.2, delay: 0.1 });
+
+      gsap.to(card, {
+        width: 280,
+        height: 318,
+        borderRadius: 28,
+        background: '#f1f1f5',
+        boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0,0,0,0.04)',
+        border: '1px solid rgba(0, 0, 0, 0.06)',
+        duration: 0.45,
+        ease: 'morphSpring'
+      });
+    }
+
+    function closeCard() {
+      state = 'idle';
+      contactList.style.display = 'none';
+      sendingContainer.style.display = 'none';
+      sentContainer.style.display = 'none';
+      shareBtn.style.display = 'flex';
+
+      gsap.to(card, {
+        width: 56,
+        height: 56,
+        borderRadius: 18,
+        background: 'linear-gradient(180deg, #2d2d38 0%, #15151c 100%)',
+        boxShadow: 'inset 0 1px 1px rgba(255, 255, 255, 0.25), 0 12px 28px -4px rgba(0, 0, 0, 0.45)',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        duration: 0.42,
+        ease: 'morphSpring'
+      });
+    }
+
+    card.onclick = (e) => {
+      if (state === 'idle') {
+        openCard();
+      }
+    };
+
+    rows.forEach(row => {
+      row.onmouseenter = () => {
+        if (state !== 'expanded') return;
+        const targetTop = row.offsetTop;
+        const img = row.querySelector('.avatar-img');
+        const name = row.querySelector('.contact-name');
+        
+        gsap.to(hoverPill, { top: targetTop, opacity: 1, duration: 0.25, ease: 'smoothGlide' });
+        img.style.borderRadius = '14px';
+        img.style.transform = 'scale(1.05)';
+        name.style.fontWeight = '700';
+      };
+
+      row.onmouseleave = () => {
+        if (state !== 'expanded') return;
+        const img = row.querySelector('.avatar-img');
+        const name = row.querySelector('.contact-name');
+        img.style.borderRadius = '50%';
+        img.style.transform = 'scale(1)';
+        name.style.fontWeight = '600';
+      };
+
+      row.onclick = (e) => {
+        e.stopPropagation();
+        if (state !== 'expanded') return;
+
+        state = 'sending';
+        const avatarUrl = row.getAttribute('data-avatar');
+        sendingAvatarImg.src = avatarUrl;
+
+        contactList.style.display = 'none';
+
+        // Collapse card down to squircle & show sending spinner
+        gsap.to(card, {
+          width: 56,
+          height: 56,
+          borderRadius: 18,
+          background: 'linear-gradient(180deg, #2d2d38 0%, #15151c 100%)',
+          boxShadow: 'inset 0 1px 1px rgba(255, 255, 255, 0.25), 0 12px 28px -4px rgba(0, 0, 0, 0.45)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          duration: 0.42,
+          ease: 'morphSpring',
+          onComplete: () => {
+            sendingContainer.style.display = 'flex';
+            gsap.fromTo(progressCircle, { strokeDashoffset: 113 }, { strokeDashoffset: 0, duration: 1.1, ease: 'power2.inOut', onComplete: () => {
+              // Show checkmark
+              sendingContainer.style.display = 'none';
+              sentContainer.style.display = 'flex';
+              state = 'sent';
+              gsap.fromTo(checkBadge, { scale: 0.3, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: 'back.out(2.2)' });
+              
+              setTimeout(() => {
+                closeCard();
+              }, 1300);
+            }});
+          }
+        });
+      };
+    });
+  </script>
+</body>
+</html>

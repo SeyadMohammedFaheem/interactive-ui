@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Frame-by-Frame Video Inspector</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+    #frames-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .frame-card {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 12px;
+      border: 1px solid #334155;
+    }
+    .frame-card img {
+      width: 100%;
+      border-radius: 8px;
+      display: block;
+      background: #000;
+    }
+    .frame-meta {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+    }
+    .status {
+      font-size: 14px;
+      color: #38bdf8;
+      margin: 10px 0;
+    }
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+  </style>
+</head>
+<body>
+  <h1>Frame-by-Frame Inspector: Chromatic Thinking Video</h1>
+  <div class="status" id="status">Loading video...</div>
+  <button id="extract-btn">Extract All Frames (Every 0.05s)</button>
+
+  <video id="vid" src="chromatic_thinking.mp4" crossorigin="anonymous" style="display:none;" preload="auto" muted></video>
+  <canvas id="canvas" style="display:none;"></canvas>
+
+  <div id="frames-container"></div>
+
+  <script>
+    const vid = document.getElementById('vid');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const status = document.getElementById('status');
+    const container = document.getElementById('frames-container');
+    const extractBtn = document.getElementById('extract-btn');
+
+    vid.onloadedmetadata = () => {
+      status.textContent = `Video loaded. Duration: ${vid.duration.toFixed(2)}s, Size: ${vid.videoWidth}x${vid.videoHeight}`;
+      canvas.width = vid.videoWidth;
+      canvas.height = vid.videoHeight;
+    };
+
+    async function extractFrames() {
+      container.innerHTML = '';
+      const fps = 30;
+      const step = 1 / fps; // every 0.033s for 30fps
+      let frameIdx = 0;
+      const duration = vid.duration;
+
+      status.textContent = `Extracting frames...`;
+
+      for (let t = 0; t <= duration; t += step) {
+        vid.currentTime = t;
+        await new Promise(resolve => {
+          const onSeek = () => {
+            vid.removeEventListener('seeked', onSeek);
+            resolve();
+          };
+          vid.addEventListener('seeked', onSeek);
+        });
+
+        ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/png');
+
+        const card = document.createElement('div');
+        card.className = 'frame-card';
+
+        const img = document.createElement('img');
+        img.src = dataUrl;
+
+        const meta = document.createElement('div');
+        meta.className = 'frame-meta';
+        meta.innerHTML = `<span>Frame #${frameIdx + 1}</span> <span>${t.toFixed(3)}s</span>`;
+
+        card.appendChild(img);
+        card.appendChild(meta);
+        container.appendChild(card);
+
+        status.textContent = `Extracted frame ${frameIdx + 1} / ${Math.ceil(duration / step)} (${t.toFixed(2)}s / ${duration.toFixed(2)}s)`;
+        frameIdx++;
+      }
+
+      status.textContent = `Extraction complete! Total ${frameIdx} frames extracted.`;
+    }
+
+    extractBtn.onclick = extractFrames;
+  </script>
+</body>
+</html>

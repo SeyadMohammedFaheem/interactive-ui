@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Chat Morphing Animation — Powered by GSAP</title>
+    <!-- Plus Jakarta Sans Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Installed GSAP via npm (with CDN fallback) -->
+    <script src="../node_modules/gsap/dist/gsap.min.js"></script>
+    <script src="../node_modules/gsap/dist/CustomEase.min.js"></script>
+    <script>
+        if (typeof gsap === 'undefined') {
+            document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"><\\/script>');
+            document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/CustomEase.min.js"><\\/script>');
+        }
+    </script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #f4f5f7;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        .viewport-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100vh;
+        }
+
+        /* Backdrop overlay when modal is open */
+        .backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.18);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 10;
+        }
+
+        .backdrop.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* -------------------------------------------------------------
+           THE UNIFIED MORPHING WIDGET
+           A single physical white card that interpolates size & radius
+           ------------------------------------------------------------- */
+        .voice-widget {
+            position: relative;
+            z-index: 20;
+            width: 300px;
+            height: 76px;
+            background: #ffffff;
+            border-radius: 999px;
+            box-shadow: 
+                0 4px 6px -1px rgba(0, 0, 0, 0.04),
+                0 16px 36px -4px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            cursor: pointer;
+            overflow: hidden;
+            transform-origin: center center;
+            transform: translateZ(0);
+            -webkit-mask-image: radial-gradient(white, black);
+            mask-image: radial-gradient(white, black);
+            will-change: width, height, border-radius, transform;
+        }
+
+        .voice-widget.expanded {
+            cursor: default;
+        }
+
+        /* Floating Mic Wave Badge on Capsule (Top-Left) */
+        .mic-badge {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #1e2025;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2.8px;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+            border: 3px solid #ffffff;
+            z-index: 30;
+            pointer-events: none;
+        }
+
+        .wave-bar {
+            width: 2.6px;
+            background: #ffffff;
+            border-radius: 2px;
+            animation: pulseWave 0.9s ease-in-out infinite alternate;
+        }
+
+        .wave-bar:nth-child(1) { height: 12px; animation-delay: 0.1s; }
+        .wave-bar:nth-child(2) { height: 20px; animation-delay: 0.3s; }
+        .wave-bar:nth-child(3) { height: 16px; animation-delay: 0.0s; }
+        .wave-bar:nth-child(4) { height: 9px; animation-delay: 0.4s; }
+
+        @keyframes pulseWave {
+            0% { transform: scaleY(0.4); }
+            100% { transform: scaleY(1.15); }
+        }
+
+        /* Count Tag (+3 ⌄) in Collapsed Pill */
+        .count-tag {
+            position: absolute;
+            top: 24px;
+            left: 218px;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            z-index: 15;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .count-text {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 24px;
+            font-weight: 600;
+            color: #717680;
+            letter-spacing: -0.03em;
+            line-height: 1;
+            user-select: none;
+        }
+
+        .chevron-icon {
+            width: 14px;
+            height: 9px;
+            display: block;
+            margin-top: 2px;
+        }
+
+        .chevron-icon path {
+            stroke: #717680;
+            stroke-width: 2.4;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        /* -------------------------------------------------------------
+           MODAL INTERNAL SECTIONS (Hidden when collapsed)
+           ------------------------------------------------------------- */
+        .modal-header {
+            position: absolute;
+            top: 22px;
+            left: 0;
+            right: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 24px;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(-8px);
+            z-index: 25;
+        }
+
+        .modal-title {
+            font-size: 19px;
+            font-weight: 700;
+            color: #1e293b;
+            letter-spacing: -0.02em;
+        }
+
+        .close-btn {
+            position: absolute;
+            right: 22px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #f1f5f9;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 
+                background 0.15s ease,
+                transform 0.15s ease;
+        }
+
+        .close-btn:hover {
+            background: #e2e8f0;
+            transform: translateY(-50%) scale(1.08);
+        }
+
+        .close-btn:active {
+            transform: translateY(-50%) scale(0.92);
+        }
+
+        .close-btn svg {
+            width: 14px;
+            height: 14px;
+            stroke: #64748b;
+            stroke-width: 2.4;
+            stroke-linecap: round;
+        }
+
+        /* -------------------------------------------------------------
+           INDIVIDUAL PARTICIPANT CELLS
+           Each cell is absolutely positioned to glide smoothly between states
+           ------------------------------------------------------------- */
+        .participant-item {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 58px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 20;
+            will-change: transform, opacity;
+        }
+
+        .avatar-wrap {
+            position: relative;
+            width: 58px;
+            height: 58px;
+        }
+
+        .avatar-img {
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #ffffff;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.07);
+            background: #e2e8f0;
+            display: block;
+        }
+
+        /* Mini Speaking Badge inside participant avatar */
+        .mini-speaking-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1.8px;
+            border: 1.5px solid #f1f5f9;
+            opacity: 0;
+            transform: scale(0.6);
+            pointer-events: none;
+        }
+
+        .mini-speaking-badge .mini-wave {
+            width: 1.8px;
+            background: #1e293b;
+            border-radius: 1px;
+            animation: miniWave 0.75s ease-in-out infinite alternate;
+        }
+
+        .mini-speaking-badge .mini-wave:nth-child(1) { height: 6px; animation-delay: 0.1s; }
+        .mini-speaking-badge .mini-wave:nth-child(2) { height: 11px; animation-delay: 0.3s; }
+        .mini-speaking-badge .mini-wave:nth-child(3) { height: 8px; animation-delay: 0.0s; }
+        .mini-speaking-badge .mini-wave:nth-child(4) { height: 4px; animation-delay: 0.2s; }
+
+        @keyframes miniWave {
+            0% { transform: scaleY(0.4); }
+            100% { transform: scaleY(1.2); }
+        }
+
+        .participant-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #334155;
+            letter-spacing: -0.015em;
+            text-align: center;
+            white-space: nowrap;
+            margin-top: 8px;
+            opacity: 0;
+            transform: translateY(-4px);
+            pointer-events: none;
+            user-select: none;
+        }
+
+        /* -------------------------------------------------------------
+           ACTION BOTTOM SECTION
+           ------------------------------------------------------------- */
+        .action-section {
+            position: absolute;
+            bottom: 24px;
+            left: 24px;
+            right: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            opacity: 0;
+            transform: translateY(16px);
+            pointer-events: none;
+            z-index: 25;
+        }
+
+        .join-btn {
+            width: 100%;
+            height: 52px;
+            border-radius: 16px;
+            background: #111827;
+            color: #ffffff;
+            border: none;
+            outline: none;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            letter-spacing: -0.015em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 
+                background 0.25s ease,
+                transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 0.25s ease;
+            box-shadow: 0 4px 12px rgba(17, 24, 39, 0.15);
+        }
+
+        .join-btn:hover {
+            background: #1f2937;
+            transform: scale(1.02);
+            box-shadow: 0 6px 16px rgba(17, 24, 39, 0.22);
+        }
+
+        .join-btn:active {
+            transform: scale(0.98);
+        }
+
+        .join-btn.connected {
+            background: #10b981;
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+        }
+
+        .muted-note {
+            font-size: 13.5px;
+            font-weight: 500;
+            color: #94a3b8;
+            letter-spacing: -0.01em;
+            text-align: center;
+        }
+
+        /* Bottom Hint Badge */
+        .instruction-tag {
+            position: fixed;
+            bottom: 28px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #ffffff;
+            padding: 8px 16px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #64748b;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            z-index: 5;
+        }
+
+        .badge-gsap {
+            background: #eef2ff;
+            color: #4f46e5;
+            padding: 3px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="viewport-wrapper">
+        <!-- Backdrop for smooth modal dimming -->
+        <div class="backdrop" id="backdrop"></div>
+
+        <!-- SINGLE UNIFIED MORPHING WIDGET -->
+        <div class="voice-widget" id="voiceWidget">
+            
+            <!-- Floating Mic Wave Badge (Capsule State) -->
+            <div class="mic-badge" id="micBadge">
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+            </div>
+
+            <!-- +3 and Chevron (Capsule State) -->
+            <div class="count-tag" id="countTag">
+                <span class="count-text">+3</span>
+                <svg class="chevron-icon" viewBox="0 0 14 9" fill="none">
+                    <path d="M1.5 2L7 7.5L12.5 2" />
+                </svg>
+            </div>
+
+            <!-- Modal Header (Title & Close Button) -->
+            <div class="modal-header" id="modalHeader">
+                <span class="modal-title">Voice Chat</span>
+                <button class="close-btn" id="closeBtn" title="Close">
+                    <svg viewBox="0 0 24 24">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- PARTICIPANT ITEMS (The actual 7 items that glide smoothly) -->
+            
+            <!-- Row 1: Oğuz -->
+            <div class="participant-item" id="p0" style="z-index: 14;">
+                <div class="avatar-wrap">
+                    <img class="avatar-img" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80" alt="Oğuz" />
+                    <div class="mini-speaking-badge" id="badgeOguz">
+                        <div class="mini-wave"></div>
+                        <div class="mini-wave"></div>
+                        <div class="mini-wave"></div>
+                        <div class="mini-wave"></div>
+                    </div>
+                </div>
+                <span class="participant-name">Oğuz</span>
+            </div>
+
+            <!-- Row 1: Ashish -->
+            <div class="participant-item" id="p1" style="z-index: 13;">
+                <div class="avatar-wrap">
+                    <img class="avatar-img" src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80" alt="Ashish" />
+                </div>
+                <span class="participant-name">Ashish</span>
+            </div>
+
+            <!-- Row 1: Mariana -->
+            <div class="participant-item" id="p2" style="z-index: 12;">
+                <div class="avatar-wrap">
+                    <img class="avatar-img" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80" alt="Mariana" />
+                </div>
+                <span class="participant-name">Mariana</span>
+            </div>
+
+            <!-- Row 1: MDS -->
+            <div class="participant-item" id="p3" style="z-index: 11;">
+                <div class="avatar-wrap">
+                    <img class="avatar-img" src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&auto=format&fit=crop&q=80" alt="MDS" />
+                </div>
+                <span class="participant-name">MDS</span>
+            </div>
+
+            <!-- Row 2: Ana -->
+            <div class="participant-item" id="p4" style="z-index: 10;">
+                <div class="avatar-wrap">
+                    <img class="avatar-img" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80" alt="Ana" />
+                </div>
+                <span class="participant-name">Ana</span>
+            </div>
+
+            <!-- Row 2: Natko (Speaking) -->
+            <div class="participant-item" id="p5" style="z-index: 9;">
+                <div class="avatar-wrap">
+                    <img class="avatar-img" src="https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=200&auto=format&fit=crop&q=80" alt="Natko" />
+                    <div class="mini-speaking-badge" id="badgeNatko">
+                        <div class="mini-wave"></div>
+                        <div class="mini-wave"></div>
+                        <div class="mini-wave"></div>
+                        <div class="mini-wave"></div>
+                    </div>
+                </div>
+                <span class="participant-name">Natko</span>
+            </div>
+
+            <!-- Row 2: Afshin -->
+            <div class="participant-item" id="p6" style="z-index: 8;">
+                <div class="avatar-wrap">
+                    <img class="avatar-img" src="https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=200&auto=format&fit=crop&q=80" alt="Afshin" />
+                </div>
+                <span class="participant-name">Afshin</span>
+            </div>
+
+            <!-- Modal Action Section -->
+            <div class="action-section" id="actionSection">
+                <button class="join-btn" id="joinBtn">Join Now</button>
+                <span class="muted-note">Mic will be muted initially.</span>
+            </div>
+
+        </div>
+
+        <!-- Hint tag -->
+        <div class="instruction-tag">
+            <span>Continuous shared-element morphing</span>
+            <span class="badge-gsap">GSAP 3</span>
+        </div>
+    </div>
+
+    <!-- GSAP CONTINUOUS SHARED-ELEMENT MORPHING LOGIC -->
+    <script>
+        const widget = document.getElementById("voiceWidget");
+        const backdrop = document.getElementById("backdrop");
+        const closeBtn = document.getElementById("closeBtn");
+        const joinBtn = document.getElementById("joinBtn");
+        const micBadge = document.getElementById("micBadge");
+        const countTag = document.getElementById("countTag");
+        const header = document.getElementById("modalHeader");
+        const action = document.getElementById("actionSection");
+        const badgeOguz = document.getElementById("badgeOguz");
+        const badgeNatko = document.getElementById("badgeNatko");
+
+        const p0 = document.getElementById("p0");
+        const p1 = document.getElementById("p1");
+        const p2 = document.getElementById("p2");
+        const p3 = document.getElementById("p3");
+        const p4 = document.getElementById("p4");
+        const p5 = document.getElementById("p5");
+        const p6 = document.getElementById("p6");
+
+        const allNames = document.querySelectorAll(".participant-name");
+
+        // -------------------------------------------------------------
+        // COORDINATES DEFINITION
+        // Collapsed: 4 overlapping horizontal avatars at y=9
+        // Expanded: 4 columns (x: 20, 107, 194, 281), row 1 at y=76, row 2 at y=176
+        // -------------------------------------------------------------
+        const POS_COLLAPSED = {
+            p0: { x: 18,  y: 9, opacity: 1, scale: 1 },
+            p1: { x: 61,  y: 9, opacity: 1, scale: 1 },
+            p2: { x: 104, y: 9, opacity: 1, scale: 1 },
+            p3: { x: 147, y: 9, opacity: 1, scale: 1 },
+            // Row 2 are tucked behind Row 1 in collapsed state
+            p4: { x: 61,  y: 9, opacity: 0, scale: 0.5 },
+            p5: { x: 104, y: 9, opacity: 0, scale: 0.5 },
+            p6: { x: 147, y: 9, opacity: 0, scale: 0.5 }
+        };
+
+        const POS_EXPANDED = {
+            p0: { x: 20,  y: 76,  opacity: 1, scale: 1 },
+            p1: { x: 107, y: 76,  opacity: 1, scale: 1 },
+            p2: { x: 194, y: 76,  opacity: 1, scale: 1 },
+            p3: { x: 281, y: 76,  opacity: 1, scale: 1 },
+            p4: { x: 20,  y: 178, opacity: 1, scale: 1 },
+            p5: { x: 107, y: 178, opacity: 1, scale: 1 },
+            p6: { x: 194, y: 178, opacity: 1, scale: 1 }
+        };
+
+        // Initialize elements to exact collapsed positions
+        gsap.set(p0, POS_COLLAPSED.p0);
+        gsap.set(p1, POS_COLLAPSED.p1);
+        gsap.set(p2, POS_COLLAPSED.p2);
+        gsap.set(p3, POS_COLLAPSED.p3);
+        gsap.set(p4, POS_COLLAPSED.p4);
+        gsap.set(p5, POS_COLLAPSED.p5);
+        gsap.set(p6, POS_COLLAPSED.p6);
+
+        let isExpanded = false;
+        let isConnected = false;
+
+        if (typeof CustomEase !== "undefined") {
+            gsap.registerPlugin(CustomEase);
+            CustomEase.create("smoothInOut", "M0,0 C0.4,0 0.2,1 1,1");
+        }
+
+        const fluidEase = "cubic-bezier(0.16, 1.38, 0.3, 1)";
+        const springEase = "cubic-bezier(0.16, 1.38, 0.3, 1)";
+
+        // Create the master timeline for fast, responsive, reversible morphing
+        const morphTl = gsap.timeline({
+            paused: true,
+            defaults: { ease: fluidEase },
+            onStart: () => {
+                backdrop.classList.add("active");
+                widget.classList.add("expanded");
+            },
+            onReverseComplete: () => {
+                backdrop.classList.remove("active");
+                widget.classList.remove("expanded");
+                isExpanded = false;
+            }
+        });
+
+        // 1. Card container morph (0.48s)
+        morphTl.to(widget, {
+            width: 360,
+            height: 426,
+            borderRadius: 32,
+            boxShadow: "0 24px 48px -12px rgba(0, 0, 0, 0.16)",
+            duration: 0.48,
+            ease: fluidEase
+        }, 0);
+
+        // 2. Synchronous glide for Row 1 Avatars (0.48s)
+        morphTl.to(p0, { x: POS_EXPANDED.p0.x, y: POS_EXPANDED.p0.y, duration: 0.48, ease: springEase }, 0);
+        morphTl.to(p1, { x: POS_EXPANDED.p1.x, y: POS_EXPANDED.p1.y, duration: 0.48, ease: springEase }, 0.02);
+        morphTl.to(p2, { x: POS_EXPANDED.p2.x, y: POS_EXPANDED.p2.y, duration: 0.48, ease: springEase }, 0.04);
+        morphTl.to(p3, { x: POS_EXPANDED.p3.x, y: POS_EXPANDED.p3.y, duration: 0.48, ease: springEase }, 0.06);
+
+        // 3. Row 2 Avatars slide down and scale into place (0.48s)
+        morphTl.to(p4, { x: POS_EXPANDED.p4.x, y: POS_EXPANDED.p4.y, opacity: 1, scale: 1, duration: 0.48, ease: springEase }, 0.08);
+        morphTl.to(p5, { x: POS_EXPANDED.p5.x, y: POS_EXPANDED.p5.y, opacity: 1, scale: 1, duration: 0.48, ease: springEase }, 0.10);
+        morphTl.to(p6, { x: POS_EXPANDED.p6.x, y: POS_EXPANDED.p6.y, opacity: 1, scale: 1, duration: 0.48, ease: springEase }, 0.12);
+
+        // 4. Quick fade out for collapsed pill badges & tags (0.2s)
+        morphTl.to(countTag, { opacity: 0, scale: 0.7, x: "+=6", duration: 0.20, ease: "power2.in" }, 0);
+        morphTl.to(micBadge, { opacity: 0, scale: 0.5, duration: 0.20, ease: "power2.in" }, 0);
+
+        // 5. Reveal for mini speaking badges on Oğuz and Natko (0.35s)
+        morphTl.to([badgeOguz, badgeNatko], {
+            opacity: 1,
+            scale: 1,
+            duration: 0.35,
+            ease: "back.out(1.8)"
+        }, 0.25);
+
+        // 6. Fade/slide for participant names (0.35s)
+        morphTl.to(allNames, {
+            opacity: 1,
+            y: 0,
+            duration: 0.35,
+            stagger: 0.02,
+            ease: fluidEase
+        }, 0.22);
+
+        // 7. Reveal for Header and Action Button (0.45s)
+        morphTl.to(header, {
+            opacity: 1,
+            y: 0,
+            pointerEvents: "auto",
+            duration: 0.45,
+            ease: fluidEase
+        }, 0.15);
+
+        morphTl.to(action, {
+            opacity: 1,
+            y: 0,
+            pointerEvents: "auto",
+            duration: 0.45,
+            ease: fluidEase
+        }, 0.18);
+
+        // -------------------------------------------------------------
+        // INTERACTION HANDLERS
+        // -------------------------------------------------------------
+        widget.addEventListener("click", () => {
+            if (!isExpanded) {
+                isExpanded = true;
+                morphTl.timeScale(0.95).play();
+            }
+        });
+
+        closeBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            morphTl.timeScale(0.95).reverse();
+        });
+
+        backdrop.addEventListener("click", () => {
+            if (isExpanded) {
+                morphTl.timeScale(0.95).reverse();
+            }
+        });
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && isExpanded) {
+                morphTl.reverse();
+            }
+        });
+
+        // Join button interactive toggle
+        joinBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            isConnected = !isConnected;
+            if (isConnected) {
+                gsap.to(joinBtn, {
+                    scale: 0.96,
+                    duration: 0.08,
+                    yoyo: true,
+                    repeat: 1,
+                    onComplete: () => {
+                        joinBtn.classList.add("connected");
+                        joinBtn.textContent = "✓ Connected";
+                    }
+                });
+            } else {
+                joinBtn.classList.remove("connected");
+                joinBtn.textContent = "Join Now";
+            }
+        });
+    </script>
+</body>
+</html>

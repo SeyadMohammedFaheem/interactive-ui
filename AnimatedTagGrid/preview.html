@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FLIP Animated Tag Selector — Powered by GSAP</title>
+  <!-- Plus Jakarta Sans Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/CustomEase.min.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      user-select: none;
+      padding: 24px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 460px;
+      background: #ffffff;
+      border-radius: 28px;
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      box-shadow: 0 24px 50px -12px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.02);
+      padding: 26px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .title-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #475569;
+      letter-spacing: 0.9px;
+    }
+
+    .count-badge {
+      font-size: 12px;
+      font-weight: 600;
+      color: #64748b;
+      background: #f1f5f9;
+      padding: 2px 9px;
+      border-radius: 999px;
+    }
+
+    .clear-btn {
+      background: transparent;
+      border: none;
+      outline: none;
+      font-size: 13px;
+      font-weight: 600;
+      color: #ef4444;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .clear-btn:hover {
+      background: #fee2e2;
+    }
+
+    .selected-box {
+      background: #fafafa;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 20px;
+      padding: 12px 14px;
+      min-height: 64px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8.5px;
+      align-items: center;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.015);
+    }
+
+    .placeholder {
+      font-size: 14.5px;
+      color: #94a3b8;
+      font-weight: 400;
+      margin-left: 4px;
+    }
+
+    .selected-tag-pill {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 7.5px 10px 7.5px 14px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #0f172a;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      will-change: transform;
+    }
+
+    .close-btn {
+      background: #f1f5f9;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+
+    .close-btn:hover {
+      background: #fee2e2;
+      color: #ef4444;
+    }
+
+    .available-box {
+      background: #f8fafc;
+      border-radius: 22px;
+      padding: 20px;
+      margin-top: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .available-tag-pill {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 9px 18px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #334155;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+      transition: all 0.2s cubic-bezier(0.16, 1.38, 0.3, 1);
+      will-change: transform;
+    }
+
+    .available-tag-pill:hover {
+      background: #ffffff;
+      border-color: #cbd5e1;
+      color: #0f172a;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+    }
+
+    .available-tag-pill:active {
+      transform: scale(0.95);
+    }
+
+    svg {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <!-- Header Row -->
+    <div class="header-row">
+      <div class="title-group">
+        <span class="header-label">TAGS</span>
+        <span class="count-badge" id="countBadge">2 selected</span>
+      </div>
+      <button class="clear-btn" id="clearBtn" title="Clear all tags">Clear all</button>
+    </div>
+
+    <!-- Selected Tags Container -->
+    <div class="selected-box" id="selectedBox"></div>
+
+    <!-- Available Tags Container -->
+    <div class="available-box" id="availableBox"></div>
+  </div>
+
+  <script>
+    gsap.registerPlugin(CustomEase);
+    try {
+      CustomEase.create('tagSpring', 'M0,0 C0.16,1.35 0.28,1.08 1,1');
+    } catch (e) {}
+
+    const ALL_TAGS = [
+      'Node',
+      'JavaScript',
+      'Express',
+      'React',
+      'Vue',
+      'Next',
+      'TypeScript',
+      'Svelte',
+      'Gatsby',
+      'Knockout',
+      'Backbone',
+      'Ember',
+      'Chai',
+      'Mocha',
+      'Jest'
+    ];
+
+    let selectedSet = new Set(['Node', 'React']);
+    const tagElements = new Map();
+
+    const selectedBox = document.getElementById('selectedBox');
+    const availableBox = document.getElementById('availableBox');
+    const countBadge = document.getElementById('countBadge');
+    const clearBtn = document.getElementById('clearBtn');
+
+    ALL_TAGS.forEach((tag) => {
+      const pill = document.createElement('div');
+      pill.dataset.tag = tag;
+      tagElements.set(tag, pill);
+    });
+
+    function recordPositions() {
+      const rects = new Map();
+      ALL_TAGS.forEach((tag) => {
+        const el = tagElements.get(tag);
+        if (el && el.parentElement) {
+          rects.set(tag, el.getBoundingClientRect());
+        }
+      });
+      return rects;
+    }
+
+    function renderTags(prevRects = null) {
+      selectedBox.innerHTML = '';
+      availableBox.innerHTML = '';
+
+      countBadge.textContent = `${selectedSet.size} selected`;
+      if (selectedSet.size > 0) {
+        clearBtn.style.display = 'block';
+      } else {
+        clearBtn.style.display = 'none';
+      }
+
+      if (selectedSet.size === 0) {
+        const ph = document.createElement('span');
+        ph.className = 'placeholder';
+        ph.textContent = 'Click tags below to add...';
+        selectedBox.appendChild(ph);
+      }
+
+      ALL_TAGS.forEach((tag) => {
+        const el = tagElements.get(tag);
+        if (selectedSet.has(tag)) {
+          el.className = 'selected-tag-pill';
+          el.innerHTML = `
+            <span>${tag}</span>
+            <button class="close-btn" title="Remove ${tag}">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          `;
+          el.onclick = null;
+          const closeBtn = el.querySelector('.close-btn');
+          closeBtn.onclick = (e) => {
+            e.stopPropagation();
+            toggleTag(tag);
+          };
+          selectedBox.appendChild(el);
+        } else {
+          el.className = 'available-tag-pill';
+          el.textContent = tag;
+          el.onclick = () => toggleTag(tag);
+          availableBox.appendChild(el);
+        }
+      });
+
+      if (prevRects) {
+        ALL_TAGS.forEach((tag) => {
+          const el = tagElements.get(tag);
+          const prev = prevRects.get(tag);
+          const next = el.getBoundingClientRect();
+
+          if (prev) {
+            const deltaX = prev.left - next.left;
+            const deltaY = prev.top - next.top;
+
+            if (deltaX !== 0 || deltaY !== 0) {
+              gsap.fromTo(el,
+                {
+                  x: deltaX,
+                  y: deltaY,
+                  scale: 1.08,
+                  rotation: deltaX > 0 ? 2 : -2
+                },
+                {
+                  x: 0,
+                  y: 0,
+                  scale: 1,
+                  rotation: 0,
+                  duration: 0.48,
+                  ease: 'tagSpring'
+                }
+              );
+            }
+          }
+        });
+      }
+    }
+
+    function toggleTag(tag) {
+      const prevRects = recordPositions();
+      if (selectedSet.has(tag)) {
+        selectedSet.delete(tag);
+      } else {
+        selectedSet.add(tag);
+      }
+      renderTags(prevRects);
+    }
+
+    clearBtn.addEventListener('click', () => {
+      const prevRects = recordPositions();
+      selectedSet.clear();
+      renderTags(prevRects);
+    });
+
+    renderTags();
+  </script>
+</body>
+</html>

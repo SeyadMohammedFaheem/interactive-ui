@@ -1,0 +1,27 @@
+{
+  "name": "swiftui-animations",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@gsap/react": "^2.1.2",
+    "@vitejs/plugin-react": "^6.1.1",
+    "gsap": "^3.15.0",
+    "lucide-react": "^1.45.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "vite": "^8.3.0"
+  },
+  "devDependencies": {
+    "ffmpeg-static": "^5.3.0"
+  }
+}

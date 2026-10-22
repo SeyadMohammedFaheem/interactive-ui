@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Big Circular 3D Carousel — Powered by GSAP</title>
+  <!-- Plus Jakarta Sans Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      user-select: none;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .stage {
+      position: relative;
+      width: 100%;
+      max-width: 800px;
+      height: 620px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      perspective: 1400px;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .stage:active {
+      cursor: grabbing;
+    }
+
+    .wheel-container {
+      position: relative;
+      width: 330px;
+      height: 490px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform-style: preserve-3d;
+    }
+
+    /* Main Product Card */
+    .card {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 330px;
+      background: #ffffff;
+      border-radius: 44px;
+      padding: 12px;
+      box-shadow: 0 28px 60px -12px rgba(0, 0, 0, 0.14), 0 10px 28px rgba(0, 0, 0, 0.04);
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      will-change: transform, opacity;
+    }
+
+    .top-photo-box {
+      position: relative;
+      width: 100%;
+      height: 280px;
+      border-radius: 34px;
+      overflow: hidden;
+      background: #f8fafc;
+    }
+
+    .product-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      pointer-events: none;
+    }
+
+    .frosted-heart-btn {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.4);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      outline: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      transition: all 0.2s ease;
+      z-index: 10;
+    }
+
+    .bottom-content-area {
+      padding: 18px 14px 10px 14px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .product-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: #18181b;
+      margin: 0;
+      line-height: 1.25;
+      letter-spacing: -0.2px;
+    }
+
+    .product-desc {
+      font-size: 13px;
+      font-weight: 400;
+      color: #64748b;
+      margin: 8px 0 0 0;
+      line-height: 1.45;
+      max-width: 98%;
+    }
+
+    .action-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 18px;
+    }
+
+    .price-text {
+      font-size: 22px;
+      font-weight: 800;
+      color: #18181b;
+      letter-spacing: 0.2px;
+    }
+
+    .dark-buy-btn {
+      background: #232127;
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 11px 32px;
+      border-radius: 999px;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(35, 33, 39, 0.2);
+      transition: all 0.2s ease;
+    }
+
+    .dark-buy-btn.bought {
+      background: #22c55e;
+      color: #ffffff;
+    }
+
+    /* Navigation Arrows */
+    .nav-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 200;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .nav-btn:hover {
+      transform: translateY(-50%) scale(1.08);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+    }
+
+    .nav-btn:active {
+      transform: translateY(-50%) scale(0.95);
+    }
+
+    .nav-btn.left { left: 24px; }
+    .nav-btn.right { right: 24px; }
+  </style>
+</head>
+<body>
+
+  <div class="stage" id="stage">
+    <!-- Floating Navigation Arrows -->
+    <button class="nav-btn left" id="prevBtn" title="Previous Product">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#18181b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
+    </button>
+
+    <button class="nav-btn right" id="nextBtn" title="Next Product">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#18181b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 18 15 12 9 6"></polyline>
+      </svg>
+    </button>
+
+    <!-- 3D Circular Wheel Cards Container -->
+    <div class="wheel-container" id="wheelContainer"></div>
+  </div>
+
+  <script>
+    const CARDS = [
+      {
+        id: 1,
+        title: 'Vintage Heavyweight Tee',
+        desc: 'Premium 280gsm organic cotton with relaxed drop-shoulder silhouette.',
+        price: '$ 85',
+        image: '../public/images/1.png'
+      },
+      {
+        id: 2,
+        title: 'Acid Wash Oversized Tee',
+        desc: 'Custom vintage wash finish with heavyweight structure and soft feel.',
+        price: '$ 95',
+        image: '../public/images/2wo.png'
+      },
+      {
+        id: 3,
+        title: 'Minimalist Essential Tee',
+        desc: 'Ultra-soft combed cotton short sleeve tailored for modern everyday wear.',
+        price: '$ 78',
+        image: '../public/images/3ee.png'
+      },
+      {
+        id: 4,
+        title: 'Urban Graphic Boxy Tee',
+        desc: 'Heavyweight boxy silhouette featuring contemporary minimalist graphics.',
+        price: '$ 110',
+        image: '../public/images/4u.png'
+      }
+    ];
+
+    let activeIndex = 0;
+    let likedMap = {};
+    let boughtMap = {};
+    let isDragging = false;
+    let startX = 0;
+    let dragOffsetAngle = 0;
+
+    const ANGLE_STEP = 65;
+    const WHEEL_RADIUS = 520;
+    const total = CARDS.length;
+
+    const wheelContainer = document.getElementById('wheelContainer');
+    const stage = document.getElementById('stage');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+
+    // Build DOM elements
+    const cardElements = CARDS.map((card, idx) => {
+      const cardEl = document.createElement('div');
+      cardEl.className = 'card';
+      cardEl.innerHTML = `
+        <div class="top-photo-box">
+          <img class="product-img" src="${card.image}" alt="${card.title}" draggable="false" />
+          <button class="frosted-heart-btn" title="Like">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path class="heart-path" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+            </svg>
+          </button>
+        </div>
+        <div class="bottom-content-area">
+          <h2 class="product-title">${card.title}</h2>
+          <p class="product-desc">${card.desc}</p>
+          <div class="action-row">
+            <span class="price-text">${card.price}</span>
+            <button class="dark-buy-btn">Buy</button>
+          </div>
+        </div>
+      `;
+
+      const heartBtn = cardEl.querySelector('.frosted-heart-btn');
+      const heartPath = cardEl.querySelector('.heart-path');
+      const buyBtn = cardEl.querySelector('.dark-buy-btn');
+
+      heartBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        likedMap[card.id] = !likedMap[card.id];
+        if (likedMap[card.id]) {
+          heartPath.setAttribute('fill', '#ef4444');
+          heartPath.setAttribute('stroke', '#ef4444');
+        } else {
+          heartPath.setAttribute('fill', 'none');
+          heartPath.setAttribute('stroke', '#ffffff');
+        }
+        gsap.fromTo(heartBtn, { scale: 0.7 }, { scale: 1, duration: 0.35, ease: 'back.out(2.5)' });
+      });
+
+      buyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        boughtMap[card.id] = true;
+        buyBtn.classList.add('bought');
+        buyBtn.textContent = 'Added ✓';
+        gsap.fromTo(buyBtn, { scale: 0.85 }, { scale: 1, duration: 0.35, ease: 'back.out(2)' });
+      });
+
+      wheelContainer.appendChild(cardEl);
+      return cardEl;
+    });
+
+    function getCardAngle(index, targetActive, dragOffset = 0) {
+      let diff = index - targetActive;
+      while (diff < -total / 2) diff += total;
+      while (diff > total / 2) diff -= total;
+      return diff * ANGLE_STEP + dragOffset;
+    }
+
+    function updateWheelPositions(targetActive, duration = 0, dragOffset = 0) {
+      cardElements.forEach((cardEl, idx) => {
+        const angle = getCardAngle(idx, targetActive, dragOffset);
+        const absAngle = Math.abs(angle);
+
+        let opacity = Math.max(0, 1 - (absAngle / ANGLE_STEP));
+        let scale = 1 - (absAngle / ANGLE_STEP) * 0.15;
+        let zIndex = Math.round(100 - absAngle);
+        let pointerEvents = absAngle < 10 ? 'auto' : 'none';
+
+        if (duration === 0) {
+          gsap.set(cardEl, {
+            rotationY: angle,
+            transformOrigin: `50% 50% -${WHEEL_RADIUS}px`,
+            opacity: opacity,
+            scale: scale,
+            zIndex: zIndex,
+            pointerEvents: pointerEvents
+          });
+        } else {
+          gsap.to(cardEl, {
+            rotationY: angle,
+            transformOrigin: `50% 50% -${WHEEL_RADIUS}px`,
+            opacity: opacity,
+            scale: scale,
+            zIndex: zIndex,
+            pointerEvents: pointerEvents,
+            duration: duration,
+            ease: 'power3.out',
+            overwrite: 'auto'
+          });
+        }
+      });
+    }
+
+    function goToSlide(newIndex) {
+      activeIndex = (newIndex + total) % total;
+      updateWheelPositions(activeIndex, 0.55);
+    }
+
+    prevBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      goToSlide(activeIndex - 1);
+    });
+
+    nextBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      goToSlide(activeIndex + 1);
+    });
+
+    // Drag Gesture Handlers
+    function onPointerDown(e) {
+      isDragging = true;
+      startX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
+      dragOffsetAngle = 0;
+    }
+
+    function onPointerMove(e) {
+      if (!isDragging) return;
+      const x = e.clientX || (e.touches && e.touches[0].clientX) || 0;
+      const deltaX = x - startX;
+      dragOffsetAngle = deltaX * 0.18;
+      updateWheelPositions(activeIndex, 0, dragOffsetAngle);
+    }
+
+    function onPointerUp() {
+      if (!isDragging) return;
+      isDragging = false;
+      if (dragOffsetAngle < -12) {
+        goToSlide(activeIndex + 1);
+      } else if (dragOffsetAngle > 12) {
+        goToSlide(activeIndex - 1);
+      } else {
+        updateWheelPositions(activeIndex, 0.45);
+      }
+    }
+
+    stage.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('mousemove', onPointerMove);
+    window.addEventListener('mouseup', onPointerUp);
+
+    stage.addEventListener('touchstart', onPointerDown);
+    window.addEventListener('touchmove', onPointerMove);
+    window.addEventListener('touchend', onPointerUp);
+
+    updateWheelPositions(activeIndex, 0);
+  </script>
+</body>
+</html>

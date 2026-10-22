@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>View on Map Morph — Pannable Map</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      background: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Backdrop blur layer */
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.16);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.28s ease;
+      z-index: 10;
+    }
+    .backdrop.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Shared Morph Widget Container */
+    .widget-container {
+      position: relative;
+      z-index: 20;
+      width: 224px;
+      height: 58px;
+      border-radius: 999px;
+      background: #e9eaf2;
+      box-shadow: none;
+      overflow: hidden;
+      cursor: pointer;
+      transform-origin: center center;
+      transform: translateZ(0);
+      will-change: width, height, border-radius, box-shadow;
+    }
+    .widget-container.expanded {
+      cursor: grab;
+    }
+    .widget-container.dragging {
+      cursor: grabbing;
+    }
+
+    /* Collapsed Pill Content */
+    .pill-content {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 0 22px;
+      background: #e9eaf2;
+      border-radius: 999px;
+      z-index: 5;
+      pointer-events: none;
+      will-change: opacity, transform;
+    }
+    .pill-label {
+      font-size: 17px;
+      font-weight: 600;
+      color: #1c1f26;
+      letter-spacing: -0.015em;
+      white-space: nowrap;
+    }
+
+    /* Expanded Map Content */
+    .map-content {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      pointer-events: none;
+      overflow: hidden;
+      border-radius: inherit;
+      transform-origin: center center;
+      will-change: opacity, transform;
+      touch-action: none;
+    }
+    .map-image {
+      position: absolute;
+      top: -30%;
+      left: -30%;
+      width: 160%;
+      height: 160%;
+      object-fit: cover;
+      object-position: center;
+      display: block;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    /* Floating Close Button */
+    .close-btn {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+      z-index: 50;
+      opacity: 0;
+      transform: scale(0);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="backdrop" id="backdrop"></div>
+
+  <div class="widget-container" id="widget">
+    <!-- Map Content with Pannable Image -->
+    <div class="map-content" id="mapContent">
+      <img src="map_bg.png" alt="Bayside Map" class="map-image" id="mapImage" draggable="false">
+
+      <button class="close-btn" id="closeBtn" title="Close">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="3" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Pill Content -->
+    <div class="pill-content" id="pillContent">
+      <svg width="22" height="20" viewBox="0 0 24 22" fill="none">
+        <path d="M2.5 5.5C2.5 4.7 3.2 4.1 4 4.4L8 5.8V19.4L3.6 17.8C2.9 17.5 2.5 16.9 2.5 16.1V5.5Z" fill="#4a4e5a"/>
+        <path d="M9.2 6.1L14.8 3.8V17.4L9.2 19.7V6.1Z" fill="#3e424e"/>
+        <path d="M16 3.8L20 5C20.8 5.3 21.5 6 21.5 6.8V17.4C21.5 18.2 20.8 18.8 20 18.5L16 17.4V3.8Z" fill="#525666"/>
+      </svg>
+      <span class="pill-label">View on Map</span>
+    </div>
+  </div>
+
+  <script>
+    const widget = document.getElementById('widget');
+    const pillContent = document.getElementById('pillContent');
+    const mapContent = document.getElementById('mapContent');
+    const mapImage = document.getElementById('mapImage');
+    const closeBtn = document.getElementById('closeBtn');
+    const backdrop = document.getElementById('backdrop');
+
+    let isExpanded = false;
+    let isDragging = false;
+    let isPointerDown = false;
+    let panX = 0, panY = 0;
+    let startX = 0, startY = 0;
+    const MAX_PAN = 90;
+
+    // Master Morph Timeline
+    const tl = gsap.timeline({
+      paused: true,
+      onStart: () => {
+        isExpanded = true;
+        backdrop.classList.add('active');
+        widget.classList.add('expanded');
+      },
+      onReverseComplete: () => {
+        isExpanded = false;
+        backdrop.classList.remove('active');
+        widget.classList.remove('expanded');
+        widget.classList.remove('dragging');
+        // Reset pan offset
+        panX = 0;
+        panY = 0;
+        gsap.set(mapImage, { x: 0, y: 0 });
+      }
+    });
+
+    // 1. Continuous pill to square morph
+    tl.to(widget, {
+      width: 340,
+      height: 340,
+      borderRadius: 38,
+      boxShadow: 'none',
+      duration: 0.48,
+      ease: 'cubic-bezier(0.16, 1.38, 0.3, 1)'
+    }, 0);
+
+    // 2. Pill label fade out
+    tl.to(pillContent, {
+      opacity: 0,
+      scale: 0.88,
+      duration: 0.14,
+      ease: 'power2.in'
+    }, 0);
+
+    // 3. Map content smooth reveal
+    tl.fromTo(mapContent, {
+      opacity: 0,
+      scale: 1.08,
+      pointerEvents: 'none'
+    }, {
+      opacity: 1,
+      scale: 1.0,
+      pointerEvents: 'auto',
+      duration: 0.48,
+      ease: 'cubic-bezier(0.16, 1.38, 0.3, 1)'
+    }, 0.03);
+
+    // 4. Close button pop in
+    tl.fromTo(closeBtn, {
+      scale: 0,
+      opacity: 0
+    }, {
+      scale: 1,
+      opacity: 1,
+      duration: 0.32,
+      ease: 'back.out(2)'
+    }, 0.16);
+
+    widget.addEventListener('click', () => {
+      if (!isExpanded) {
+        tl.timeScale(1.0).play();
+      }
+    });
+
+    // Drag-to-pan handlers
+    mapContent.addEventListener('pointerdown', (e) => {
+      if (!isExpanded || e.target.closest('button')) return;
+      isPointerDown = true;
+      startX = e.clientX - panX;
+      startY = e.clientY - panY;
+      widget.classList.add('dragging');
+      mapContent.setPointerCapture(e.pointerId);
+    });
+
+    mapContent.addEventListener('pointermove', (e) => {
+      if (!isPointerDown) return;
+      let newX = e.clientX - startX;
+      let newY = e.clientY - startY;
+
+      newX = Math.max(-MAX_PAN, Math.min(MAX_PAN, newX));
+      newY = Math.max(-MAX_PAN, Math.min(MAX_PAN, newY));
+
+      panX = newX;
+      panY = newY;
+
+      gsap.to(mapImage, {
+        x: panX,
+        y: panY,
+        duration: 0.1,
+        ease: 'power1.out',
+        overwrite: 'auto'
+      });
+    });
+
+    const endDrag = (e) => {
+      if (!isPointerDown) return;
+      isPointerDown = false;
+      widget.classList.remove('dragging');
+      try { mapContent.releasePointerCapture(e.pointerId); } catch(err){}
+    };
+
+    mapContent.addEventListener('pointerup', endDrag);
+    mapContent.addEventListener('pointercancel', endDrag);
+
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      tl.timeScale(1.2).reverse();
+    });
+
+    backdrop.addEventListener('click', () => {
+      if (isExpanded) {
+        tl.timeScale(1.2).reverse();
+      }
+    });
+  </script>
+</body>
+</html>

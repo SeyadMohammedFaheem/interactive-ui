@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Set Status Morph — Powered by GSAP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: none;
+    }
+    .backdrop.active {
+      display: block;
+    }
+
+    .stack-container {
+      position: relative;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .popup-wrapper {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      opacity: 0;
+      pointer-events: none;
+      transform-origin: center bottom;
+    }
+
+    .tooltip-bubble {
+      position: absolute;
+      top: -52px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #f4f5f9;
+      color: #1e293b;
+      padding: 8px 18px;
+      border-radius: 20px;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      white-space: nowrap;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+      pointer-events: none;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transform-origin: center bottom;
+    }
+    .tooltip-tail {
+      position: absolute;
+      bottom: -6px;
+      left: 50%;
+      transform: translateX(-50%) rotate(45deg);
+      width: 10px;
+      height: 10px;
+      background: #f4f5f9;
+      border-radius: 2px;
+    }
+
+    .emoji-capsule {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 9px;
+      background: #ffffff;
+      border-radius: 999px;
+      border: 1.5px solid #edeef4;
+      box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.07), 0 4px 12px rgba(0, 0, 0, 0.02);
+    }
+
+    .emoji-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #f4f5f9;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform-origin: center center;
+      transition: all 0.25s cubic-bezier(0.16, 1.38, 0.3, 1);
+      overflow: hidden;
+    }
+    .emoji-btn:hover {
+      background: #eef0f6;
+      transform: scale(1.15) translateY(-2px);
+    }
+
+    .png-icon {
+      width: 34px;
+      height: 34px;
+      object-fit: contain;
+      border-radius: 50%;
+      mix-blend-mode: multiply;
+      pointer-events: none;
+    }
+
+    .png-icon-small {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
+      border-radius: 50%;
+      mix-blend-mode: multiply;
+      pointer-events: none;
+    }
+
+    .more-dots {
+      font-size: 14px;
+      font-weight: 800;
+      color: #8e92a2;
+      letter-spacing: 1px;
+    }
+
+    .set-status-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 0 28px;
+      height: 56px;
+      border-radius: 999px;
+      background: #f4f5f9;
+      border: 1.5px solid transparent;
+      cursor: pointer;
+      outline: none;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+      transition: all 0.35s cubic-bezier(0.16, 1.38, 0.3, 1);
+    }
+    .set-status-btn:hover {
+      background: #ebecee;
+      transform: scale(1.02);
+    }
+
+    .btn-label {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e293b;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+    }
+
+    .clear-icon {
+      font-size: 13px;
+      font-weight: 800;
+      color: #94a3b8;
+      margin-left: 6px;
+      padding: 4px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="backdrop" id="backdrop"></div>
+
+  <div class="stack-container">
+    <!-- Expanded Emoji Bar -->
+    <div class="popup-wrapper" id="popupWrapper">
+      <div class="tooltip-bubble" id="tooltipBubble">
+        <span id="tooltipText">Feeling Sick</span>
+        <div class="tooltip-tail"></div>
+      </div>
+
+      <div class="emoji-capsule" id="emojiCapsule">
+        <button class="emoji-btn" data-id="vacation" data-src="../public/images/status_palm.png" data-label="On Vacation">
+          <img class="png-icon" src="../public/images/status_palm.png" alt="Vacation" />
+        </button>
+
+        <button class="emoji-btn" data-id="sick" data-src="../public/images/status_sick.png" data-label="Feeling Sick">
+          <img class="png-icon" src="../public/images/status_sick.png" alt="Feeling Sick" />
+        </button>
+
+        <button class="emoji-btn" data-id="meeting" data-src="../public/images/status_calendar.png" data-label="In a Meeting">
+          <img class="png-icon" src="../public/images/status_calendar.png" alt="In a Meeting" />
+        </button>
+
+        <button class="emoji-btn" data-id="exercising" data-src="../public/images/status_sneaker.png" data-label="Be Right Back">
+          <img class="png-icon" src="../public/images/status_sneaker.png" alt="Be Right Back" />
+        </button>
+
+        <button class="emoji-btn" data-id="commuting" data-src="../public/images/status_bus.png" data-label="Commuting">
+          <img class="png-icon" src="../public/images/status_bus.png" alt="Commuting" />
+        </button>
+
+        <button class="emoji-btn" data-id="more" data-label="More Options">
+          <span class="more-dots">•••</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Button -->
+    <button class="set-status-btn" id="setStatusBtn">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" id="statusSvg">
+        <circle cx="12" cy="12" r="3.5" fill="#8e92a2"/>
+        <circle cx="12" cy="12" r="8.5" stroke="#8e92a2" stroke-width="2.2" stroke-dasharray="3.8 3.2" stroke-linecap="round"/>
+      </svg>
+      <span class="btn-label" id="btnLabel">Set Status</span>
+    </button>
+  </div>
+
+  <script>
+    const popupWrapper = document.getElementById('popupWrapper');
+    const tooltipBubble = document.getElementById('tooltipBubble');
+    const tooltipText = document.getElementById('tooltipText');
+    const setStatusBtn = document.getElementById('setStatusBtn');
+    const btnLabel = document.getElementById('btnLabel');
+    const statusSvg = document.getElementById('statusSvg');
+    const backdrop = document.getElementById('backdrop');
+    const emojiBtns = document.querySelectorAll('.emoji-btn');
+
+    let isExpanded = false;
+    let selectedStatus = null;
+
+    function positionTooltip(targetBtn, label) {
+      tooltipText.textContent = label;
+      const targetRect = targetBtn.getBoundingClientRect();
+      const popupRect = popupWrapper.getBoundingClientRect();
+      const centerX = targetRect.left + targetRect.width / 2 - popupRect.left;
+
+      gsap.to(tooltipBubble, {
+        left: centerX,
+        duration: 0.26,
+        ease: 'cubic-bezier(0.16, 1.38, 0.3, 1)',
+        overwrite: 'auto'
+      });
+    }
+
+    setStatusBtn.addEventListener('click', (e) => {
+      if (e.target.classList.contains('clear-icon')) {
+        e.stopPropagation();
+        selectedStatus = null;
+        setStatusBtn.style.background = '#f4f5f9';
+        setStatusBtn.style.borderColor = 'transparent';
+        statusSvg.style.display = 'block';
+        btnLabel.textContent = 'Set Status';
+        return;
+      }
+
+      isExpanded = !isExpanded;
+      if (isExpanded) {
+        backdrop.classList.add('active');
+        popupWrapper.style.pointerEvents = 'auto';
+
+        gsap.fromTo(popupWrapper,
+          { opacity: 0, y: 24, scale: 0.82 },
+          { opacity: 1, y: 0, scale: 1, duration: 0.48, ease: 'cubic-bezier(0.16, 1.38, 0.3, 1)', overwrite: 'auto' }
+        );
+
+        gsap.fromTo(emojiBtns,
+          { opacity: 0, y: 20, scale: 0.65 },
+          { opacity: 1, y: 0, scale: 1, duration: 0.48, ease: 'cubic-bezier(0.16, 1.38, 0.3, 1)', stagger: 0.035, delay: 0.03, overwrite: 'auto' }
+        );
+
+        gsap.fromTo(tooltipBubble,
+          { opacity: 0, y: 18, scale: 0.75 },
+          { opacity: 1, y: 0, scale: 1, duration: 0.48, ease: 'cubic-bezier(0.16, 1.38, 0.3, 1)', delay: 0.1, overwrite: 'auto' }
+        );
+
+        const defaultBtn = emojiBtns[1]; // Feeling Sick
+        positionTooltip(defaultBtn, defaultBtn.dataset.label);
+      } else {
+        backdrop.classList.remove('active');
+        popupWrapper.style.pointerEvents = 'none';
+
+        gsap.to(popupWrapper, {
+          opacity: 0,
+          y: 12,
+          scale: 0.85,
+          duration: 0.2,
+          ease: 'power2.in',
+          overwrite: 'auto'
+        });
+      }
+    });
+
+    backdrop.addEventListener('click', () => {
+      isExpanded = false;
+      backdrop.classList.remove('active');
+      popupWrapper.style.pointerEvents = 'none';
+
+      gsap.to(popupWrapper, {
+        opacity: 0,
+        y: 12,
+        scale: 0.85,
+        duration: 0.2,
+        ease: 'power2.in',
+        overwrite: 'auto'
+      });
+    });
+
+    emojiBtns.forEach((btn) => {
+      btn.addEventListener('mouseenter', () => {
+        positionTooltip(btn, btn.dataset.label);
+      });
+
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const label = btn.dataset.label;
+        const src = btn.dataset.src;
+        if (id === 'more') return;
+
+        selectedStatus = { id, label, src };
+        statusSvg.style.display = 'none';
+        btnLabel.innerHTML = `<img class="png-icon-small" src="${src}" alt="${label}" /> ${label} <span class="clear-icon" title="Clear">✕</span>`;
+        setStatusBtn.style.background = '#ffffff';
+        setStatusBtn.style.borderColor = '#e2e8f0';
+
+        gsap.fromTo(setStatusBtn, { scale: 0.9 }, { scale: 1, duration: 0.4, ease: 'back.out(2)' });
+
+        isExpanded = false;
+        backdrop.classList.remove('active');
+        popupWrapper.style.pointerEvents = 'none';
+
+        gsap.to(popupWrapper, {
+          opacity: 0,
+          y: 12,
+          scale: 0.85,
+          duration: 0.2,
+          ease: 'power2.in',
+          overwrite: 'auto'
+        });
+      });
+    });
+  </script>
+</body>
+</html>
