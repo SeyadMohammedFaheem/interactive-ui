@@ -17,3 +17,5 @@ Thumbs.db
 *.log
 .vscode/
 .idea/
+
+ffmpeg.zip
