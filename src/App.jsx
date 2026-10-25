@@ -28,6 +28,7 @@ import TrafficChartMorph from './components/TrafficChartMorph.jsx';
 import BeforeAfterMorph from './components/BeforeAfterMorph.jsx';
 import HoldToRecordMorph from './components/HoldToRecordMorph.jsx';
 import TimeRulerMorph from './components/TimeRulerMorph.jsx';
+import AgenticSkillsView from './components/AgenticSkillsView.jsx';
 
 const CARDS = [
   {
@@ -338,6 +339,9 @@ export default function App() {
   const embedId = urlParams.get('embed');
   const directId = urlParams.get('id');
 
+  const [navSection, setNavSection] = useState(() => {
+    return urlParams.get('page') === 'skills' ? 'skills' : 'components';
+  });
   const [activeTab, setActiveTab] = useState(() => {
     return directId && CARDS.some(c => c.id === directId) ? directId : 'cardSwap';
   });
@@ -393,11 +397,32 @@ export default function App() {
     );
   }
 
+  const switchNavSection = (section) => {
+    setNavSection(section);
+    if (section === 'skills') {
+      setViewMode('showcase');
+      try {
+        const url = new URL(window.location);
+        url.searchParams.delete('id');
+        url.searchParams.set('page', 'skills');
+        window.history.pushState({}, '', url);
+      } catch (e) {}
+    } else {
+      try {
+        const url = new URL(window.location);
+        url.searchParams.delete('page');
+        window.history.pushState({}, '', url);
+      } catch (e) {}
+    }
+  };
+
   const openSingleView = (tabId) => {
+    setNavSection('components');
     setActiveTab(tabId);
     setViewMode('single');
     try {
       const url = new URL(window.location);
+      url.searchParams.delete('page');
       url.searchParams.set('id', tabId);
       window.history.pushState({}, '', url);
     } catch (e) {}
@@ -416,12 +441,18 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
-      const id = params.get('id');
-      if (id && CARDS.some(c => c.id === id)) {
-        setActiveTab(id);
-        setViewMode('single');
+      const page = params.get('page');
+      if (page === 'skills') {
+        setNavSection('skills');
       } else {
-        setViewMode('showcase');
+        setNavSection('components');
+        const id = params.get('id');
+        if (id && CARDS.some(c => c.id === id)) {
+          setActiveTab(id);
+          setViewMode('single');
+        } else {
+          setViewMode('showcase');
+        }
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -499,8 +530,8 @@ export default function App() {
   return (
     <div style={{
       ...styles.appContainer,
-      height: viewMode === 'single' ? '100vh' : 'auto',
-      overflow: viewMode === 'single' ? 'hidden' : 'visible'
+      height: (navSection === 'components' && viewMode === 'single') ? '100vh' : 'auto',
+      overflow: (navSection === 'components' && viewMode === 'single') ? 'hidden' : 'visible'
     }}>
       {/* Edge-to-edge masonry layout and overrides */}
       <style>{`
@@ -605,13 +636,35 @@ export default function App() {
       {/* Simple Header with Monochrome Folded Figure Logo */}
       <header style={styles.simpleNavbar}>
         <div style={styles.simpleNavbarContent}>
-          <div style={styles.simpleBrandGroup} onClick={closeSingleView}>
+          <div style={styles.simpleBrandGroup} onClick={() => switchNavSection('components')}>
             <img
               src="/Monochrome%20Folded%20Figure%20Logo.png"
               alt="Monochrome Folded Figure Logo"
               style={styles.simpleLogoImg}
             />
-            <span style={styles.simpleBrandTitle}>Interactive UI Components</span>
+            <span style={styles.simpleBrandTitle}>repo.fw</span>
+          </div>
+
+          {/* Center: Segmented Navigation Switcher */}
+          <div style={styles.navSectionSwitcher}>
+            <button
+              style={{
+                ...styles.navSectionBtn,
+                ...(navSection === 'components' ? styles.navSectionBtnActive : {})
+              }}
+              onClick={() => switchNavSection('components')}
+            >
+              Components
+            </button>
+            <button
+              style={{
+                ...styles.navSectionBtn,
+                ...(navSection === 'skills' ? styles.navSectionBtnActive : {})
+              }}
+              onClick={() => switchNavSection('skills')}
+            >
+              Agentic Skills
+            </button>
           </div>
 
           {/* Right Group: Search Bar & Actions */}
@@ -674,7 +727,12 @@ export default function App() {
 
       {/* Main Content Area */}
       <main style={styles.mainContent}>
-        {viewMode === 'showcase' ? (
+        {navSection === 'skills' ? (
+          <AgenticSkillsView
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+          />
+        ) : viewMode === 'showcase' ? (
           <>
             {/* Hero Section matching reference design */}
             <section style={styles.heroSection}>
@@ -1218,6 +1276,32 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'space-between',
     boxSizing: 'border-box'
+  },
+  navSectionSwitcher: {
+    display: 'flex',
+    alignItems: 'center',
+    background: '#F1F1F2',
+    padding: '3px',
+    borderRadius: '999px',
+    gap: '2px'
+  },
+  navSectionBtn: {
+    border: 'none',
+    padding: '6px 16px',
+    borderRadius: '999px',
+    fontSize: '13px',
+    fontWeight: '500',
+    color: '#71717a',
+    background: 'transparent',
+    cursor: 'pointer',
+    transition: 'all 0.16s ease',
+    userSelect: 'none'
+  },
+  navSectionBtnActive: {
+    background: '#ffffff',
+    color: '#09090b',
+    fontWeight: '600',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)'
   },
   simpleBrandGroup: {
     display: 'flex',
