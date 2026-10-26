@@ -1,6 +1,6 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 
-// Timeframe datasets with smooth SVG paths and metrics
+// Timeframe datasets with smooth spline points matching reference
 const TIMEFRAMES = [
   {
     id: '1H',
@@ -11,17 +11,18 @@ const TIMEFRAMES = [
     percent: '0.6',
     time: '14:20',
     isPositive: true,
-    // Spline points for SVG (viewBox 0 0 300 120)
+    // Smooth points for 1H view matching reference screenshot
     points: [
       { x: 10, y: 85 },
       { x: 50, y: 70 },
       { x: 90, y: 88 },
       { x: 130, y: 55 },
       { x: 170, y: 65 },
-      { x: 210, y: 45 },
+      { x: 210, y: 48 },
       { x: 250, y: 40 },
       { x: 290, y: 25 }
-    ]
+    ],
+    defaultScrubberX: 112 // Position on the upward slope matching screenshot
   },
   {
     id: '4H',
@@ -32,7 +33,6 @@ const TIMEFRAMES = [
     percent: '2.1',
     time: '13:56',
     isPositive: true,
-    // Exactly matching reference screenshot's wavy dip and upward surge
     points: [
       { x: 10, y: 88 },
       { x: 45, y: 68 },
@@ -42,7 +42,8 @@ const TIMEFRAMES = [
       { x: 185, y: 58 },
       { x: 230, y: 52 },
       { x: 290, y: 32 }
-    ]
+    ],
+    defaultScrubberX: 115
   },
   {
     id: '1D',
@@ -61,14 +62,15 @@ const TIMEFRAMES = [
       { x: 190, y: 48 },
       { x: 240, y: 38 },
       { x: 290, y: 18 }
-    ]
+    ],
+    defaultScrubberX: 150
   }
 ];
 
-// Generate smooth cubic Catmull-Rom / Bezier spline SVG path from points
-function getSmoothPath(points) {
-  if (!points || points.length === 0) return '';
-  let d = `M ${points[0].x} ${points[0].y}`;
+// Build cubic Bezier spline segments matching Catmull-Rom formulation
+function getSplineSegments(points) {
+  if (!points || points.length < 2) return [];
+  const segments = [];
   for (let i = 0; i < points.length - 1; i++) {
     const p0 = points[i === 0 ? 0 : i - 1];
     const p1 = points[i];
@@ -80,9 +82,72 @@ function getSmoothPath(points) {
     const cp2x = p2.x - (p3.x - p1.x) / 6;
     const cp2y = p2.y - (p3.y - p1.y) / 6;
 
-    d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+    segments.push({
+      p1,
+      cp1: { x: cp1x, y: cp1y },
+      cp2: { x: cp2x, y: cp2y },
+      p2
+    });
+  }
+  return segments;
+}
+
+// Generate smooth SVG cubic Bezier path from segments
+function getSmoothPath(points) {
+  const segments = getSplineSegments(points);
+  if (segments.length === 0) return '';
+  let d = `M ${segments[0].p1.x} ${segments[0].p1.y}`;
+  for (const seg of segments) {
+    d += ` C ${seg.cp1.x.toFixed(2)} ${seg.cp1.y.toFixed(2)}, ${seg.cp2.x.toFixed(2)} ${seg.cp2.y.toFixed(2)}, ${seg.p2.x.toFixed(2)} ${seg.p2.y.toFixed(2)}`;
   }
   return d;
+}
+
+// Evaluate cubic Bezier point at parameter t (0 <= t <= 1)
+function evalCubicBezier(p1, cp1, cp2, p2, t) {
+  const mt = 1 - t;
+  const mt2 = mt * mt;
+  const mt3 = mt2 * mt;
+  const t2 = t * t;
+  const t3 = t2 * t;
+
+  return {
+    x: mt3 * p1.x + 3 * mt2 * t * cp1.x + 3 * mt * t2 * cp2.x + t3 * p2.x,
+    y: mt3 * p1.y + 3 * mt2 * t * cp1.y + 3 * mt * t2 * cp2.y + t3 * p2.y
+  };
+}
+
+// Mathematically compute the EXACT point on the spline curve for any target X coordinate
+function getPointAtX(points, targetX) {
+  if (!points || points.length === 0) return { x: 0, y: 0 };
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (targetX <= first.x) return { x: first.x, y: first.y };
+  if (targetX >= last.x) return { x: last.x, y: last.y };
+
+  const segments = getSplineSegments(points);
+
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (targetX >= seg.p1.x && targetX <= seg.p2.x) {
+      // High-precision binary search to locate parameter t for targetX
+      let tLow = 0;
+      let tHigh = 1;
+      let tMid = 0.5;
+      for (let iter = 0; iter < 14; iter++) {
+        tMid = (tLow + tHigh) / 2;
+        const pt = evalCubicBezier(seg.p1, seg.cp1, seg.cp2, seg.p2, tMid);
+        if (pt.x < targetX) {
+          tLow = tMid;
+        } else {
+          tHigh = tMid;
+        }
+      }
+      return evalCubicBezier(seg.p1, seg.cp1, seg.cp2, seg.p2, tMid);
+    }
+  }
+
+  return { x: targetX, y: first.y };
 }
 
 // Synthesize delicate scrubber clicks via Web Audio API
@@ -109,56 +174,54 @@ const playTickAudio = () => {
 };
 
 export default function StockChartMorph() {
-  const [activeTab, setActiveTab] = useState('4H');
-  const [scrubberRatio, setScrubberRatio] = useState(0.24); // position of circle matching screenshot (~24%)
+  // Default to 1H to match reference screenshot
+  const [activeTab, setActiveTab] = useState('1H');
+  const [scrubberX, setScrubberX] = useState(112); // Exact horizontal coordinate from screenshot
   const [isScrubbing, setIsScrubbing] = useState(false);
 
   const svgRef = useRef(null);
-  const pathRef = useRef(null);
   const lastTickXRef = useRef(0);
 
-  const currentDataset = TIMEFRAMES.find((t) => t.id === activeTab) || TIMEFRAMES[1];
+  const currentDataset = TIMEFRAMES.find((t) => t.id === activeTab) || TIMEFRAMES[0];
   const strokeColor = currentDataset.isPositive ? '#059669' : '#dc2626';
 
   const pathD = useMemo(() => {
     return getSmoothPath(currentDataset.points);
-  }, [currentDataset]);
+  }, [currentDataset.points]);
 
-  // Compute position of scrubber circle along the smooth spline path
+  // Compute EXACT position of the dot locked directly onto the spline curve
   const scrubberPos = useMemo(() => {
-    if (!pathRef.current) {
-      // Fallback interpolation matching screenshot point index 1
-      const p = currentDataset.points[1] || { x: 72, y: 76 };
-      return { x: p.x, y: p.y };
-    }
-    const totalLength = pathRef.current.getTotalLength();
-    const targetLength = Math.max(0, Math.min(totalLength, scrubberRatio * totalLength));
-    const pt = pathRef.current.getPointAtLength(targetLength);
-    return { x: pt.x, y: pt.y };
-  }, [scrubberRatio, pathD, currentDataset]);
+    return getPointAtX(currentDataset.points, scrubberX);
+  }, [currentDataset.points, scrubberX]);
 
-  // Scrubber pointer interactions
-  const handlePointerDown = (e) => {
-    setIsScrubbing(true);
-    handleScrubMove(e);
-  };
-
-  const handleScrubMove = (e) => {
+  // Handle pointer scrub along curve
+  const handleScrubMove = useCallback((clientX) => {
     if (!svgRef.current) return;
     const rect = svgRef.current.getBoundingClientRect();
-    const relX = (e.clientX - rect.left) / rect.width;
-    const clamped = Math.max(0.02, Math.min(0.98, relX));
-    setScrubberRatio(clamped);
+    const relX = (clientX - rect.left) / rect.width;
+    // Map to SVG viewBox X range [10, 290]
+    const clampedX = Math.max(10, Math.min(290, relX * 300));
+    setScrubberX(clampedX);
 
-    if (Math.abs(e.clientX - lastTickXRef.current) > 22) {
+    if (Math.abs(clientX - lastTickXRef.current) > 22) {
       playTickAudio();
-      lastTickXRef.current = e.clientX;
+      lastTickXRef.current = clientX;
+    }
+  }, []);
+
+  const handlePointerDown = (e) => {
+    setIsScrubbing(true);
+    handleScrubMove(e.clientX);
+    if (e.target.setPointerCapture) {
+      try {
+        e.target.setPointerCapture(e.pointerId);
+      } catch (err) {}
     }
   };
 
   const handlePointerMove = (e) => {
     if (!isScrubbing) return;
-    handleScrubMove(e);
+    handleScrubMove(e.clientX);
   };
 
   const handlePointerUp = () => {
@@ -169,7 +232,7 @@ export default function StockChartMorph() {
     <div style={styles.stage}>
       {/* Chart Card */}
       <div style={styles.card}>
-        {/* Header Price Section (Matching Screenshot) */}
+        {/* Header Price Section */}
         <div style={styles.priceHeader}>
           <div style={styles.priceRow}>
             <span style={styles.priceBig}>{currentDataset.priceInteger}</span>
@@ -200,21 +263,18 @@ export default function StockChartMorph() {
             ref={svgRef}
             viewBox="0 0 300 120"
             style={styles.svg}
-            preserveAspectRatio="none"
           >
             {/* The Green Spline Curve */}
             <path
-              ref={pathRef}
               d={pathD}
               fill="none"
               stroke={strokeColor}
               strokeWidth="2.8"
               strokeLinecap="round"
               strokeLinejoin="round"
-              style={{ transition: isScrubbing ? 'none' : 'd 0.35s ease' }}
             />
 
-            {/* Circular Scrubber Point (White filled with green stroke) */}
+            {/* Circular Scrubber Point (Perfect alignment centered on the curve) */}
             <circle
               cx={scrubberPos.x}
               cy={scrubberPos.y}
@@ -223,15 +283,14 @@ export default function StockChartMorph() {
               stroke={strokeColor}
               strokeWidth="2.8"
               style={{
-                filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.15))',
-                cursor: 'grab',
-                transition: isScrubbing ? 'none' : 'cx 0.35s ease, cy 0.35s ease'
+                filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.12))',
+                cursor: 'grab'
               }}
             />
           </svg>
         </div>
 
-        {/* Timeframe Selector Pills (Matching Screenshot with 4H active) */}
+        {/* Timeframe Selector Pills (Matching Screenshot with 1H active) */}
         <div style={styles.timeframesRow}>
           {TIMEFRAMES.map((tf) => {
             const isActive = activeTab === tf.id;
@@ -241,6 +300,7 @@ export default function StockChartMorph() {
                 onClick={() => {
                   playTickAudio();
                   setActiveTab(tf.id);
+                  setScrubberX(tf.defaultScrubberX);
                 }}
                 style={{
                   ...styles.timeframeBtn,

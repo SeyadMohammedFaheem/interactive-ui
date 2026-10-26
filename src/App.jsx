@@ -28,9 +28,59 @@ import TrafficChartMorph from './components/TrafficChartMorph.jsx';
 import BeforeAfterMorph from './components/BeforeAfterMorph.jsx';
 import HoldToRecordMorph from './components/HoldToRecordMorph.jsx';
 import TimeRulerMorph from './components/TimeRulerMorph.jsx';
+import ProfileCardMorph from './components/ProfileCardMorph.jsx';
+import BoardingPassMorph from './components/BoardingPassMorph.jsx';
+import CollapsibleSidebarMorph from './components/CollapsibleSidebarMorph.jsx';
+import GlassyPaginationMorph from './components/GlassyPaginationMorph.jsx';
+import ReorderListMorph from './components/ReorderListMorph.jsx';
 import AgenticSkillsView from './components/AgenticSkillsView.jsx';
 
 const CARDS = [
+  {
+    id: 'reorderList',
+    title: 'Spring FLIP Reorder List',
+    category: 'Animation',
+    tags: ['Drag', 'Slide', 'Hover'],
+    badge: 'New',
+    height: 420,
+    component: ReorderListMorph
+  },
+  {
+    id: 'glassyPagination',
+    title: 'Glassy Pagination Slider',
+    category: 'Animation',
+    tags: ['Slide', 'Drag', 'Press', 'Hover'],
+    badge: 'New',
+    height: 520,
+    component: GlassyPaginationMorph
+  },
+  {
+    id: 'collapsibleSidebar',
+    title: 'Collapsible Sidebar',
+    category: 'Navigation',
+    tags: ['Press', 'Hover', 'Morph'],
+    badge: 'New',
+    height: 480,
+    component: CollapsibleSidebarMorph
+  },
+  {
+    id: 'boardingPass',
+    title: 'Boarding Pass Ticket',
+    category: 'Feedback',
+    tags: ['Press', 'Hover', 'Slide'],
+    badge: 'New',
+    height: 360,
+    component: BoardingPassMorph
+  },
+  {
+    id: 'profileCard',
+    title: 'Profile Card',
+    category: 'Feedback',
+    tags: ['Press', 'Hover', 'Morph'],
+    badge: 'New',
+    height: 400,
+    component: ProfileCardMorph
+  },
   {
     id: 'timeRuler',
     title: 'Time Ruler Picker',
@@ -64,7 +114,7 @@ const CARDS = [
     category: 'Feedback',
     tags: ['Press', 'Slide', 'Select'],
     badge: 'New',
-    height: 380,
+    height: 520,
     component: MusicPlayerMorph
   },
   {

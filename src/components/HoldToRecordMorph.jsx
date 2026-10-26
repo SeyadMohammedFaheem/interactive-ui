@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 // Web Audio API sounds for tactile Apple-grade feel
 const playMicSound = (type = 'start') => {
@@ -9,50 +9,44 @@ const playMicSound = (type = 'start') => {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
 
+    const t = ctx.currentTime;
     if (type === 'start') {
-      // Soft high chirp when mic activates
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(480, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(840, ctx.currentTime + 0.08);
-
-      gain.gain.setValueAtTime(0.06, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.09);
-
+      osc.frequency.setValueAtTime(480, t);
+      osc.frequency.exponentialRampToValueAtTime(840, t + 0.08);
+      gain.gain.setValueAtTime(0.06, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
       osc.connect(gain);
       gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.1);
+      osc.start(t);
+      osc.stop(t + 0.1);
     } else if (type === 'cancel') {
-      // Dull low pop
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(280, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(140, ctx.currentTime + 0.12);
-
-      gain.gain.setValueAtTime(0.06, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-
+      osc.frequency.setValueAtTime(280, t);
+      osc.frequency.exponentialRampToValueAtTime(140, t + 0.12);
+      gain.gain.setValueAtTime(0.06, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
       osc.connect(gain);
       gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.13);
+      osc.start(t);
+      osc.stop(t + 0.13);
     } else if (type === 'stop') {
-      // Subtle release click
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(740, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(520, ctx.currentTime + 0.07);
-
-      gain.gain.setValueAtTime(0.05, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.07);
-
+      osc.frequency.setValueAtTime(740, t);
+      osc.frequency.exponentialRampToValueAtTime(520, t + 0.07);
+      gain.gain.setValueAtTime(0.05, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
       osc.connect(gain);
       gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.08);
+      osc.start(t);
+      osc.stop(t + 0.08);
     }
   } catch (e) {
     // Ignore audio restrictions
   }
 };
+
+const NUM_WAVE_BARS = 24;
 
 export default function HoldToRecordMorph({
   auto = false,
@@ -63,97 +57,230 @@ export default function HoldToRecordMorph({
   // States: 'idle' | 'recording' | 'preview'
   const [state, setState] = useState('idle');
   const [recordSeconds, setRecordSeconds] = useState(0);
-  const [dragX, setDragX] = useState(0); // For slide to cancel
+  const [dragX, setDragX] = useState(0); // Slide to cancel distance
   const [isPlaying, setIsPlaying] = useState(false);
   const [playProgress, setPlayProgress] = useState(0); // 0 to 1
+  const [audioDuration, setAudioDuration] = useState(2); // In seconds
+  const [currentTimeSec, setCurrentTimeSec] = useState(0);
+  const [isRealMicActive, setIsRealMicActive] = useState(false);
+  const [micErrorNote, setMicErrorNote] = useState('');
+
+  // Waveform heights state (24 bars)
   const [waveHeights, setWaveHeights] = useState(() =>
-    Array.from({ length: 22 }, () => 6 + Math.random() * 18)
+    Array.from({ length: NUM_WAVE_BARS }, () => 6 + Math.random() * 16)
   );
 
   const containerRef = useRef(null);
   const startXRef = useRef(0);
-  const timerRef = useRef(null);
-  const playTimerRef = useRef(null);
   const isHoldingRef = useRef(false);
-  const waveAnimRef = useRef(null);
+  const recordStartTimeRef = useRef(0);
+
+  // Real Audio Recording Refs
+  const mediaStreamRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const animFrameRef = useRef(null);
+  const audioPlaybackRef = useRef(null);
+  const recordedBlobUrlRef = useRef(null);
+  const sampledWaveformRef = useRef([]);
+  const timerIntervalRef = useRef(null);
 
   // Format seconds to M:SS
   const formatTime = (secs) => {
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
+    const sInt = Math.floor(secs);
+    const m = Math.floor(sInt / 60);
+    const s = sInt % 60;
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // Live waveform animation when recording
-  useEffect(() => {
-    if (state === 'recording') {
-      const updateWaveform = () => {
-        setWaveHeights(prev =>
-          prev.map((h, i) => {
-            const time = Date.now() * 0.009;
-            const wave = Math.sin(time + i * 0.45) * 10;
-            const randomJitter = Math.random() * 8;
-            return Math.max(5, Math.min(26, 12 + wave + randomJitter));
-          })
-        );
-        waveAnimRef.current = requestAnimationFrame(updateWaveform);
-      };
-      waveAnimRef.current = requestAnimationFrame(updateWaveform);
-    } else {
-      if (waveAnimRef.current) cancelAnimationFrame(waveAnimRef.current);
+  // Clean up all active audio recording streams
+  const stopRealAudioStream = useCallback(() => {
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (err) {}
     }
-    return () => {
-      if (waveAnimRef.current) cancelAnimationFrame(waveAnimRef.current);
-    };
-  }, [state]);
-
-  // Recording counter
-  useEffect(() => {
-    if (state === 'recording') {
-      setRecordSeconds(0);
-      timerRef.current = setInterval(() => {
-        setRecordSeconds(prev => prev + 1);
-      }, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
     }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [state]);
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      try {
+        audioContextRef.current.close();
+      } catch (err) {}
+      audioContextRef.current = null;
+    }
+    setIsRealMicActive(false);
+  }, []);
 
-  // Playback progress loop
+  // Cleanup on unmount
   useEffect(() => {
-    if (isPlaying && state === 'preview') {
-      const duration = Math.max(2, recordSeconds || 2);
-      const intervalMs = 50;
-      const step = intervalMs / (duration * 1000);
+    return () => {
+      stopRealAudioStream();
+      if (audioPlaybackRef.current) {
+        audioPlaybackRef.current.pause();
+      }
+      if (recordedBlobUrlRef.current) {
+        URL.revokeObjectURL(recordedBlobUrlRef.current);
+      }
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    };
+  }, [stopRealAudioStream]);
 
-      playTimerRef.current = setInterval(() => {
-        setPlayProgress(prev => {
-          if (prev >= 1) {
-            setIsPlaying(false);
-            return 0;
-          }
-          return prev + step;
+  // Real Microphone Capture Initializer
+  const startRealRecording = async () => {
+    try {
+      audioChunksRef.current = [];
+      sampledWaveformRef.current = [];
+
+      // 1. Request real microphone stream
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true
+        }
+      });
+      mediaStreamRef.current = stream;
+
+      // 2. Setup Web Audio Analyser for live voice frequency visualization
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioCtx();
+      audioContextRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 64;
+      analyser.smoothingTimeConstant = 0.65;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+
+      setIsRealMicActive(true);
+      setMicErrorNote('');
+
+      // 3. Real-time audio frequency loop
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const updateRealWaveform = () => {
+        if (!analyserRef.current) return;
+        analyserRef.current.getByteFrequencyData(dataArray);
+
+        // Map live frequencies to our 24 waveform bars
+        const newBars = Array.from({ length: NUM_WAVE_BARS }, (_, i) => {
+          // Sample across bins
+          const binIndex = Math.min(dataArray.length - 1, Math.floor((i / NUM_WAVE_BARS) * dataArray.length));
+          const val = dataArray[binIndex] || 0;
+          // Scale 0-255 to 4px - 26px
+          const scaledHeight = Math.max(4, Math.min(26, (val / 255) * 26));
+          return scaledHeight;
         });
-      }, intervalMs);
-    } else {
-      if (playTimerRef.current) clearInterval(playTimerRef.current);
+
+        setWaveHeights(newBars);
+        sampledWaveformRef.current.push([...newBars]);
+        animFrameRef.current = requestAnimationFrame(updateRealWaveform);
+      };
+      animFrameRef.current = requestAnimationFrame(updateRealWaveform);
+
+      // 4. Setup MediaRecorder
+      let mimeType = 'audio/webm';
+      if (!MediaRecorder.isTypeSupported('audio/webm')) {
+        if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+        else if (MediaRecorder.isTypeSupported('audio/ogg')) mimeType = 'audio/ogg';
+        else mimeType = '';
+      }
+
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        if (audioChunksRef.current.length > 0) {
+          const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+          if (recordedBlobUrlRef.current) {
+            URL.revokeObjectURL(recordedBlobUrlRef.current);
+          }
+          const blobUrl = URL.createObjectURL(blob);
+          recordedBlobUrlRef.current = blobUrl;
+
+          // Calculate real final waveform signature from samples
+          const samples = sampledWaveformRef.current;
+          if (samples.length > 0) {
+            const finalWave = Array.from({ length: NUM_WAVE_BARS }, (_, barIdx) => {
+              const sampleSlice = samples.map(frame => frame[barIdx]);
+              const avg = sampleSlice.reduce((a, b) => a + b, 0) / sampleSlice.length;
+              return Math.max(5, Math.min(25, avg * 1.3));
+            });
+            setWaveHeights(finalWave);
+          }
+
+          // Setup real audio player
+          const audio = new Audio(blobUrl);
+          audioPlaybackRef.current = audio;
+
+          audio.onloadedmetadata = () => {
+            if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+              setAudioDuration(audio.duration);
+            }
+          };
+
+          audio.ontimeupdate = () => {
+            if (audio.duration) {
+              setPlayProgress(audio.currentTime / audio.duration);
+              setCurrentTimeSec(audio.currentTime);
+            }
+          };
+
+          audio.onended = () => {
+            setIsPlaying(false);
+            setPlayProgress(0);
+            setCurrentTimeSec(0);
+          };
+        }
+      };
+
+      recorder.start(100); // 100ms chunks
+    } catch (err) {
+      console.warn('Microphone permission not granted or unavailable, using high-fidelity fallback:', err);
+      setMicErrorNote('Mic access unavailable, using simulated voice capture');
+      // Synthetic realistic simulation fallback
+      let startTime = Date.now();
+      const syntheticLoop = () => {
+        const t = (Date.now() - startTime) * 0.01;
+        setWaveHeights(prev =>
+          prev.map((_, i) => 5 + Math.abs(Math.sin(t + i * 0.35) * 16) + Math.random() * 5)
+        );
+        animFrameRef.current = requestAnimationFrame(syntheticLoop);
+      };
+      animFrameRef.current = requestAnimationFrame(syntheticLoop);
     }
-    return () => {
-      if (playTimerRef.current) clearInterval(playTimerRef.current);
-    };
-  }, [isPlaying, state, recordSeconds]);
+  };
 
   // Start recording on pointer down
   const handlePointerDown = (e) => {
     if (state === 'preview') return;
     isHoldingRef.current = true;
     startXRef.current = e.clientX;
+    recordStartTimeRef.current = Date.now();
     setDragX(0);
     setState('recording');
+    setRecordSeconds(0);
+    setCurrentTimeSec(0);
+
     if (sound) playMicSound('start');
+
+    // Start live microphone recording
+    startRealRecording();
+
+    // Start timer counter
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    timerIntervalRef.current = setInterval(() => {
+      setRecordSeconds(prev => prev + 1);
+    }, 1000);
 
     if (e.target.setPointerCapture) {
       try {
@@ -162,6 +289,7 @@ export default function HoldToRecordMorph({
     }
   };
 
+  // Slide to cancel tracking
   const handlePointerMove = (e) => {
     if (!isHoldingRef.current || state !== 'recording') return;
     const dx = e.clientX - startXRef.current;
@@ -170,6 +298,8 @@ export default function HoldToRecordMorph({
       // Cancel threshold exceeded (-90px)
       if (dx < -90) {
         isHoldingRef.current = false;
+        stopRealAudioStream();
+        if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
         setState('idle');
         setDragX(0);
         if (sound) playMicSound('cancel');
@@ -179,59 +309,70 @@ export default function HoldToRecordMorph({
     }
   };
 
+  // Finish recording and transition to Preview Playback
   const handlePointerUp = () => {
     if (!isHoldingRef.current || state !== 'recording') return;
     isHoldingRef.current = false;
 
-    // Check if recorded for long enough
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    const duration = Math.max(1, (Date.now() - recordStartTimeRef.current) / 1000);
+    setAudioDuration(duration);
+
+    stopRealAudioStream();
     if (sound) playMicSound('stop');
     setDragX(0);
     setState('preview');
   };
 
-  // Reset to idle
+  // Reset / Discard recorded voice note
   const handleReset = (e) => {
     if (e) e.stopPropagation();
+    stopRealAudioStream();
+    if (audioPlaybackRef.current) {
+      audioPlaybackRef.current.pause();
+      audioPlaybackRef.current = null;
+    }
+    if (recordedBlobUrlRef.current) {
+      URL.revokeObjectURL(recordedBlobUrlRef.current);
+      recordedBlobUrlRef.current = null;
+    }
     setState('idle');
     setIsPlaying(false);
     setPlayProgress(0);
     setRecordSeconds(0);
+    setCurrentTimeSec(0);
     setDragX(0);
     if (sound) playMicSound('cancel');
   };
 
-  // Toggle playback
+  // Toggle Real Audio Playback
   const handleTogglePlay = (e) => {
     e.stopPropagation();
-    setIsPlaying(!isPlaying);
-  };
 
-  // Autoplay demonstration cycle
-  useEffect(() => {
-    if (!auto) return;
-    let step = 0;
-    const interval = setInterval(() => {
-      step = (step + 1) % 4;
-      if (step === 1) {
-        setState('recording');
-        setRecordSeconds(0);
-        if (sound) playMicSound('start');
-      } else if (step === 2) {
-        setRecordSeconds(2);
-        setState('preview');
-        setIsPlaying(true);
-        if (sound) playMicSound('stop');
-      } else if (step === 3) {
+    if (audioPlaybackRef.current) {
+      if (isPlaying) {
+        audioPlaybackRef.current.pause();
         setIsPlaying(false);
       } else {
-        setState('idle');
-        setPlayProgress(0);
-        setRecordSeconds(0);
+        audioPlaybackRef.current.play().catch(err => console.log('Audio playback error:', err));
+        setIsPlaying(true);
       }
-    }, (speed || 4) * 1000);
+    } else {
+      // Fallback timer playback
+      setIsPlaying(!isPlaying);
+    }
+  };
 
-    return () => clearInterval(interval);
-  }, [auto, speed, sound]);
+  // Handle interactive scrubber click
+  const handleScrubberClick = (e, index) => {
+    e.stopPropagation();
+    if (state !== 'preview') return;
+    const progress = (index + 1) / NUM_WAVE_BARS;
+    setPlayProgress(progress);
+    if (audioPlaybackRef.current && audioPlaybackRef.current.duration) {
+      audioPlaybackRef.current.currentTime = progress * audioPlaybackRef.current.duration;
+    }
+  };
 
   return (
     <div style={styles.stage}>
@@ -247,7 +388,7 @@ export default function HoldToRecordMorph({
             ...styles.capsule,
             ...(state === 'idle'
               ? styles.capsuleIdle
-              : styles.capsuleActive),
+              : (state === 'recording' ? styles.capsuleRecording : styles.capsulePreview)),
             transform: `translateX(${dragX * 0.35}px) scale(${state === 'recording' ? 1.02 : 1})`,
             cursor: state === 'idle' ? 'pointer' : (state === 'recording' ? 'grabbing' : 'default')
           }}
@@ -255,7 +396,6 @@ export default function HoldToRecordMorph({
           {/* STATE 1: IDLE ("Hold to record") */}
           {state === 'idle' && (
             <div style={styles.idleContent}>
-              {/* Mic Icon */}
               <svg
                 width="18"
                 height="18"
@@ -274,7 +414,7 @@ export default function HoldToRecordMorph({
             </div>
           )}
 
-          {/* STATE 2: RECORDING (Red dot + Timer + Live Waveform) */}
+          {/* STATE 2: RECORDING (Red Pulsing Dot + Live Voice Waveform) */}
           {state === 'recording' && (
             <div style={styles.recordingContent}>
               <div style={styles.recordingLeft}>
@@ -284,7 +424,7 @@ export default function HoldToRecordMorph({
                 </span>
               </div>
 
-              {/* Dynamic Waveform Bars */}
+              {/* Live Real-Voice Waveform Bars */}
               <div style={styles.waveformContainer}>
                 {waveHeights.map((h, i) => (
                   <div
@@ -300,14 +440,14 @@ export default function HoldToRecordMorph({
             </div>
           )}
 
-          {/* STATE 3: PREVIEW / PLAYBACK (Play Button + Silver Waveform + Duration + Close) */}
+          {/* STATE 3: PREVIEW (Matching screenshot: Play Button + Scrubber Waveform + Time + Close) */}
           {state === 'preview' && (
             <div style={styles.previewContent}>
-              {/* Play / Pause Circular Button */}
+              {/* Circular Play / Pause Button */}
               <button
                 style={styles.playBtn}
                 onClick={handleTogglePlay}
-                title={isPlaying ? 'Pause' : 'Play'}
+                title={isPlaying ? 'Pause playback' : 'Play real recording'}
               >
                 {isPlaying ? (
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="#ffffff">
@@ -321,31 +461,34 @@ export default function HoldToRecordMorph({
                 )}
               </button>
 
-              {/* Scrubber Waveform Bars */}
+              {/* Real Recorded Audio Waveform with interactive scrubber */}
               <div style={styles.waveformContainer}>
                 {waveHeights.map((h, i) => {
-                  const barProgress = i / waveHeights.length;
-                  const isFilled = isPlaying && barProgress <= playProgress;
+                  const barProgress = i / NUM_WAVE_BARS;
+                  const isFilled = barProgress <= playProgress;
                   return (
                     <div
                       key={i}
+                      onClick={(e) => handleScrubberClick(e, i)}
                       style={{
                         ...styles.waveBar,
                         height: `${h}px`,
-                        backgroundColor: isFilled ? '#18181b' : '#9ca3af',
-                        transition: 'background-color 0.12s ease'
+                        backgroundColor: isFilled ? '#18181b' : '#94a3b8',
+                        cursor: 'pointer',
+                        transition: 'background-color 0.1s ease'
                       }}
+                      title="Seek audio position"
                     />
                   );
                 })}
               </div>
 
-              {/* Recorded Duration */}
+              {/* Recorded Duration Time (Matching 0:02 in screenshot) */}
               <span style={styles.previewDuration}>
-                {formatTime(recordSeconds || 2)}
+                {formatTime(isPlaying ? currentTimeSec : audioDuration)}
               </span>
 
-              {/* Close / Delete Button */}
+              {/* Discard / Close Button */}
               <button
                 style={styles.closeBtn}
                 onClick={handleReset}
@@ -356,7 +499,7 @@ export default function HoldToRecordMorph({
                   height="14"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#71717a"
+                  stroke="#64748b"
                   strokeWidth="2.4"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -406,7 +549,7 @@ const styles = {
     position: 'relative'
   },
   capsule: {
-    height: '52px',
+    height: '56px',
     borderRadius: '999px',
     display: 'flex',
     alignItems: 'center',
@@ -421,12 +564,19 @@ const styles = {
     boxShadow: '0 4px 18px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04)',
     padding: '0 20px'
   },
-  capsuleActive: {
-    width: '270px',
+  capsuleRecording: {
+    width: '280px',
     background: '#ffffff',
-    border: '2px solid #2563eb', // Vibrant electric blue matching reference
-    boxShadow: '0 8px 24px -4px rgba(37, 99, 235, 0.18), 0 2px 8px rgba(0, 0, 0, 0.04)',
+    border: '2px solid #2563eb', // Vibrant royal blue matching reference
+    boxShadow: '0 8px 24px -4px rgba(37, 99, 235, 0.22), 0 2px 8px rgba(0, 0, 0, 0.04)',
     padding: '0 16px'
+  },
+  capsulePreview: {
+    width: '292px',
+    background: '#ffffff',
+    border: '2px solid #2563eb', // Exact royal blue ring from screenshot
+    boxShadow: '0 8px 26px -4px rgba(37, 99, 235, 0.2), 0 2px 8px rgba(0, 0, 0, 0.04)',
+    padding: '0 12px 0 10px'
   },
   idleContent: {
     display: 'flex',
@@ -455,14 +605,15 @@ const styles = {
     width: '9px',
     height: '9px',
     borderRadius: '50%',
-    backgroundColor: '#f87171',
-    boxShadow: '0 0 8px rgba(248, 113, 113, 0.6)',
+    backgroundColor: '#ef4444',
+    boxShadow: '0 0 8px rgba(239, 68, 68, 0.6)',
     animation: 'pulseRecord 1.1s ease-in-out infinite'
   },
   timerText: {
     fontSize: '14px',
     fontWeight: '700',
-    fontFamily: "'SF Pro Display', -apple-system, monospace",
+    fontVariantNumeric: 'tabular-nums',
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', monospace",
     color: '#18181b',
     minWidth: '34px'
   },
@@ -471,15 +622,14 @@ const styles = {
     alignItems: 'center',
     gap: '2.5px',
     height: '28px',
-    padding: '0 4px',
+    padding: '0 6px',
     flex: 1,
     justifyContent: 'center'
   },
   waveBar: {
     width: '2.5px',
     borderRadius: '999px',
-    minHeight: '4px',
-    transition: 'height 0.08s ease'
+    minHeight: '4px'
   },
   previewContent: {
     width: '100%',
@@ -489,23 +639,24 @@ const styles = {
     gap: '8px'
   },
   playBtn: {
-    width: '36px',
-    height: '36px',
+    width: '38px',
+    height: '38px',
     borderRadius: '50%',
-    backgroundColor: '#18181b',
+    backgroundColor: '#18191f',
     border: 'none',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     cursor: 'pointer',
     flexShrink: 0,
-    transition: 'transform 0.15s ease'
+    transition: 'transform 0.15s ease, background-color 0.15s ease'
   },
   previewDuration: {
-    fontSize: '13px',
-    fontWeight: '600',
-    fontFamily: "'SF Pro Display', -apple-system, monospace",
-    color: '#4b5563',
+    fontSize: '13.5px',
+    fontWeight: '700',
+    fontVariantNumeric: 'tabular-nums',
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', monospace",
+    color: '#1e293b',
     minWidth: '32px',
     textAlign: 'right'
   },
